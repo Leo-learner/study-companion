@@ -5,21 +5,32 @@ import { calculateGoalProgress } from '../progress';
 import {
   StudyGoal,
   GoalCategory,
-  GOAL_CATEGORY_LABELS,
   Priority,
   Difficulty,
   generateId,
 } from '../types';
+import { useI18n } from '../i18n/I18nProvider';
+import { TranslationKey } from '../i18n/messages';
 
-const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: '简单', normal: '中等', hard: '困难' };
-const PRIORITY_LABELS: Record<Priority, string> = { high: '高', medium: '中', low: '低' };
+const CATEGORY_KEYS: Record<GoalCategory, TranslationKey> = {
+  course: 'goal.category.course', problems: 'goal.category.problems', memory: 'goal.category.memory',
+  reading: 'goal.category.reading', project: 'goal.category.project', custom: 'goal.category.custom',
+};
+const DIFFICULTY_KEYS: Record<Difficulty, TranslationKey> = {
+  easy: 'goal.difficulty.easy', normal: 'goal.difficulty.normal', hard: 'goal.difficulty.hard',
+};
+const PRIORITY_KEYS: Record<Priority, TranslationKey> = {
+  high: 'goal.priority.high', medium: 'goal.priority.medium', low: 'goal.priority.low',
+};
 
 export default function GoalManager() {
   const cycle = getActiveCycle();
+  const cycleId = cycle?.id;
   const [goals, setGoals] = useState<StudyGoal[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<StudyGoal | null>(null);
   const navigate = useNavigate();
+  const { language, t } = useI18n();
 
   // 表单状态
   const [name, setName] = useState('');
@@ -36,15 +47,15 @@ export default function GoalManager() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (cycle) setGoals(getGoals(cycle.id));
-  }, [cycle]);
+    if (cycleId) setGoals(getGoals(cycleId));
+  }, [cycleId]);
 
   if (!cycle) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">📚</div>
-        <div className="empty-state-title">请先创建学习周期</div>
-        <button className="btn btn-primary" onClick={() => navigate('/')}>返回首页</button>
+        <div className="empty-state-title">{t('goal.needCycle')}</div>
+        <button className="btn btn-primary" onClick={() => navigate('/')}>{t('common.backHome')}</button>
       </div>
     );
   }
@@ -90,7 +101,7 @@ export default function GoalManager() {
       cycleId: cycle.id,
       name: name.trim(),
       category,
-      unitName: unitName.trim() || '个',
+      unitName: unitName.trim() || (language === 'zh' ? '个' : 'items'),
       totalAmount,
       completedAmount: Math.min(completedAmount, totalAmount),
       priority,
@@ -109,7 +120,7 @@ export default function GoalManager() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('确定要删除这个目标吗？')) {
+    if (confirm(t('goal.deleteConfirm'))) {
       deleteGoal(id);
       setGoals(getGoals(cycle.id));
     }
@@ -129,60 +140,63 @@ export default function GoalManager() {
   };
 
   // 单位建议
-  const unitSuggestions: Record<GoalCategory, string[]> = {
-    course: ['节', '章', '课', '分钟', '小时'],
-    problems: ['题', '套', '页', '道'],
-    memory: ['个', '词', '条', '页'],
-    reading: ['页', '章', '本', '篇'],
-    project: ['阶段', '功能', '模块', '个'],
-    custom: ['个', '次', '分钟', '项'],
-  };
+  const unitSuggestions: Record<GoalCategory, string[]> = language === 'zh'
+    ? {
+        course: ['节', '章', '课', '分钟', '小时'], problems: ['题', '套', '页', '道'],
+        memory: ['个', '词', '条', '页'], reading: ['页', '章', '本', '篇'],
+        project: ['阶段', '功能', '模块', '个'], custom: ['个', '次', '分钟', '项'],
+      }
+    : {
+        course: ['lessons', 'chapters', 'classes', 'minutes', 'hours'], problems: ['problems', 'sets', 'pages', 'questions'],
+        memory: ['items', 'words', 'entries', 'pages'], reading: ['pages', 'chapters', 'books', 'articles'],
+        project: ['stages', 'features', 'modules', 'items'], custom: ['items', 'times', 'minutes', 'tasks'],
+      };
 
   return (
     <div>
-      <h1 className="page-title">🎯 学习目标管理</h1>
-      <p className="page-subtitle">管理你在当前学习周期中的所有目标。</p>
+      <h1 className="page-title">🎯 {t('goal.pageTitle')}</h1>
+      <p className="page-subtitle">{t('goal.subtitle')}</p>
 
       {goals.length === 0 && !showForm && (
         <div className="empty-state">
           <div className="empty-state-icon">🎯</div>
-          <div className="empty-state-title">还没有学习目标</div>
-          <div className="empty-state-desc">添加你的第一个学习目标，系统会根据目标生成每日任务。</div>
+          <div className="empty-state-title">{t('goal.emptyTitle')}</div>
+          <div className="empty-state-desc">{t('goal.emptyDescription')}</div>
         </div>
       )}
 
       {!showForm && (
         <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ marginBottom: '16px' }}>
-          ＋ 添加学习目标
+          ＋ {t('goal.add')}
         </button>
       )}
 
       {showForm && (
         <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-title">{editingGoal ? '✏️ 编辑目标' : '✨ 新增目标'}</div>
+          <div className="card-title">{editingGoal ? `✏️ ${t('goal.edit')}` : `✨ ${t('goal.new')}`}</div>
           <div className="card-body" style={{ marginTop: '12px' }}>
             <div className="form-group">
-              <label className="form-label">目标名称</label>
-              <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：数据结构课程" />
+              <label className="form-label">{t('goal.name')}</label>
+              <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('goal.namePlaceholder')} />
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">目标类型</label>
+                <label className="form-label">{t('goal.category')}</label>
                 <select className="form-select" value={category} onChange={(e) => { setCategory(e.target.value as GoalCategory); setUnitName(''); }}>
-                  {(Object.keys(GOAL_CATEGORY_LABELS) as GoalCategory[]).map((k) => (
-                    <option key={k} value={k}>{GOAL_CATEGORY_LABELS[k]}</option>
+                  {(Object.keys(CATEGORY_KEYS) as GoalCategory[]).map((k) => (
+                    <option key={k} value={k}>{t(CATEGORY_KEYS[k])}</option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">单位</label>
+                <label className="form-label">{t('goal.unit')}</label>
                 <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                   <input
                     className="form-input"
                     value={unitName}
                     onChange={(e) => setUnitName(e.target.value)}
-                    placeholder="例如：章、题、页"
+                    placeholder={t('goal.unitPlaceholder')}
                     style={{ flex: 1 }}
                   />
                 </div>
@@ -196,62 +210,62 @@ export default function GoalManager() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">总量 ({unitName || '单位'})</label>
+                <label className="form-label">{t('goal.totalAmount', { unit: unitName || t('common.units') })}</label>
                 <input className="form-input" type="number" min={1} value={totalAmount} onChange={(e) => setTotalAmount(Number(e.target.value))} />
               </div>
               <div className="form-group">
-                <label className="form-label">已完成 ({unitName || '单位'})</label>
+                <label className="form-label">{t('goal.completedAmount', { unit: unitName || t('common.units') })}</label>
                 <input className="form-input" type="number" min={0} max={totalAmount} value={completedAmount} onChange={(e) => setCompletedAmount(Number(e.target.value))} />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">优先级</label>
+                <label className="form-label">{t('goal.priority')}</label>
                 <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-                  <option value="high">高</option>
-                  <option value="medium">中</option>
-                  <option value="low">低</option>
+                  <option value="high">{t('goal.priority.high')}</option>
+                  <option value="medium">{t('goal.priority.medium')}</option>
+                  <option value="low">{t('goal.priority.low')}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">难度</label>
+                <label className="form-label">{t('goal.difficulty')}</label>
                 <select className="form-select" value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
-                  <option value="easy">简单</option>
-                  <option value="normal">中等</option>
-                  <option value="hard">困难</option>
+                  <option value="easy">{t('goal.difficulty.easy')}</option>
+                  <option value="normal">{t('goal.difficulty.normal')}</option>
+                  <option value="hard">{t('goal.difficulty.hard')}</option>
                 </select>
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">保底任务建议</label>
-              <input className="form-input" value={minHint} onChange={(e) => setMinHint(e.target.value)} placeholder="每天最少做什么？（留空则由系统自动生成）" />
+              <label className="form-label">{t('goal.minimumHint')}</label>
+              <input className="form-input" value={minHint} onChange={(e) => setMinHint(e.target.value)} placeholder={t('goal.minimumPlaceholder')} />
             </div>
             <div className="form-group">
-              <label className="form-label">推荐任务建议</label>
-              <input className="form-input" value={recHint} onChange={(e) => setRecHint(e.target.value)} placeholder="正常状态下推荐做什么？" />
+              <label className="form-label">{t('goal.recommendedHint')}</label>
+              <input className="form-input" value={recHint} onChange={(e) => setRecHint(e.target.value)} placeholder={t('goal.recommendedPlaceholder')} />
             </div>
             <div className="form-group">
-              <label className="form-label">可选任务建议</label>
-              <input className="form-input" value={optHint} onChange={(e) => setOptHint(e.target.value)} placeholder="状态好时额外做什么？" />
+              <label className="form-label">{t('goal.optionalHint')}</label>
+              <input className="form-input" value={optHint} onChange={(e) => setOptHint(e.target.value)} placeholder={t('goal.optionalPlaceholder')} />
             </div>
 
             <div className="form-group">
-              <label className="form-label">备注</label>
-              <textarea className="form-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="自由备注..." />
+              <label className="form-label">{t('goal.notes')}</label>
+              <textarea className="form-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('goal.notesPlaceholder')} />
             </div>
 
             <div className="form-group">
               <label className="form-checkbox">
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                激活此目标
+                {t('goal.activate')}
               </label>
             </div>
           </div>
           <div className="card-footer">
-            <button className="btn btn-primary" onClick={handleSave} disabled={!name.trim()}>💾 保存</button>
-            <button className="btn btn-secondary" onClick={resetForm}>取消</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={!name.trim()}>💾 {t('common.save')}</button>
+            <button className="btn btn-secondary" onClick={resetForm}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
@@ -267,11 +281,15 @@ export default function GoalManager() {
                   <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {goal.name}
                     <span className={`badge ${goal.isActive ? 'badge-success' : 'badge-neutral'}`}>
-                      {goal.isActive ? '激活' : '停用'}
+                      {goal.isActive ? t('common.enabled') : t('common.disabled')}
                     </span>
                   </div>
                   <div className="card-subtitle">
-                    {GOAL_CATEGORY_LABELS[goal.category]} · {DIFFICULTY_LABELS[goal.difficulty]} · 优先级{PRIORITY_LABELS[goal.priority]}
+                    {t('goal.cardSubtitle', {
+                      category: t(CATEGORY_KEYS[goal.category]),
+                      difficulty: t(DIFFICULTY_KEYS[goal.difficulty]),
+                      priority: t(PRIORITY_KEYS[goal.priority]),
+                    })}
                   </div>
                 </div>
               </div>
@@ -288,12 +306,12 @@ export default function GoalManager() {
                 )}
               </div>
               <div className="card-footer">
-                <button className="btn btn-secondary btn-sm" onClick={() => openEdit(goal)}>✏️ 编辑</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => openEdit(goal)}>✏️ {t('goal.edit')}</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => handleToggleActive(goal)}>
-                  {goal.isActive ? '⏸ 停用' : '▶️ 启用'}
+                  {goal.isActive ? `⏸ ${t('goal.pause')}` : `▶️ ${t('goal.enable')}`}
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>完成量：</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{t('goal.progressAmount')}</span>
                   <input
                     className="task-amount-input"
                     type="number"

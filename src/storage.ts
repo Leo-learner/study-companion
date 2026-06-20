@@ -222,20 +222,26 @@ export function exportDataJSON(): string {
   return JSON.stringify(data, null, 2);
 }
 
-export function importDataJSON(jsonStr: string): { success: boolean; error?: string } {
+export type ImportErrorCode = 'invalidFormat' | 'missingFields' | 'jsonParse';
+
+export type ImportResult =
+  | { success: true }
+  | { success: false; errorCode: ImportErrorCode; detail?: string };
+
+export function importDataJSON(jsonStr: string): ImportResult {
   try {
     const data = JSON.parse(jsonStr);
     if (!data || typeof data !== 'object') {
-      return { success: false, error: '数据格式不正确' };
+      return { success: false, errorCode: 'invalidFormat' };
     }
     // 基本校验
     if (!Array.isArray(data.cycles) || !Array.isArray(data.goals) || !Array.isArray(data.plans)) {
-      return { success: false, error: '数据缺少必要字段 (cycles, goals, plans)' };
+      return { success: false, errorCode: 'missingFields' };
     }
     saveData({ ...data, version: CURRENT_DATA_VERSION });
     return { success: true };
   } catch (e) {
-    return { success: false, error: `JSON 解析失败: ${(e as Error).message}` };
+    return { success: false, errorCode: 'jsonParse', detail: (e as Error).message };
   }
 }
 

@@ -5,6 +5,17 @@ import { generateDailyPlan } from '../planner';
 import { isStudyDay, getDayIndex, calculateCycleProgress, countRecentLowCompletion, countUnclosedDays } from '../progress';
 import { StudyCycle, StudyGoal, DailyPlan, CheckIn, DayOverride, todayStr } from '../types';
 import CycleSetup from './CycleSetup';
+import { useI18n } from '../i18n/I18nProvider';
+import { TranslationKey } from '../i18n/messages';
+
+const MODE_KEYS: Record<DayOverride['mode'], TranslationKey> = {
+  rest: 'plan.mode.rest', holiday: 'plan.mode.holiday', exam: 'plan.mode.exam', blocked: 'plan.mode.blocked',
+};
+
+const RHYTHM_KEYS: Record<CheckIn['rhythmStatus'], TranslationKey> = {
+  ahead: 'rhythm.ahead', stable: 'rhythm.stable', slightlyBehind: 'rhythm.slightlyBehind',
+  behind: 'rhythm.behind', slipping: 'rhythm.slipping',
+};
 
 export default function Dashboard() {
   const [cycle, setCycle] = useState<StudyCycle | null>(null);
@@ -19,6 +30,7 @@ export default function Dashboard() {
   const [phraseError, setPhraseError] = useState('');
   const [showCycleSetup, setShowCycleSetup] = useState(false);
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const today = todayStr();
 
@@ -47,32 +59,28 @@ export default function Dashboard() {
     return (
       <div>
         <div className="welcome-hero">
-          <h1>📚 学习系统陪跑器</h1>
+          <h1>📚 {t('dashboard.welcomeTitle')}</h1>
           <p>
-            这是一个通用学习系统，不是高压打卡器。<br />
-            它会帮助你把长期目标拆成每天可以承受的任务，<br />
-            并允许你根据状态滚动调整。
+            {t('dashboard.welcomeText').split('\n').map((line, index) => (
+              <React.Fragment key={line}>{index > 0 && <br />}{line}</React.Fragment>
+            ))}
           </p>
           <div className="welcome-actions">
             <button className="btn btn-primary btn-lg" onClick={() => setShowCycleSetup(true)}>
-              ✨ 创建学习周期
+              ✨ {t('dashboard.createCycle')}
             </button>
             <button className="btn btn-secondary btn-lg" onClick={() => navigate('/settings')}>
-              📥 导入已有数据
+              📥 {t('dashboard.importData')}
             </button>
           </div>
         </div>
         <div className="card">
           <div className="card-body" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
-            <strong>💡 使用说明</strong>
+            <strong>💡 {t('dashboard.instructions')}</strong>
             <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-              <li>创建一个学习周期，设定开始和结束日期。</li>
-              <li>添加学习目标（课程、刷题、背诵、阅读等）。</li>
-              <li>每天输入启动暗号，系统根据你的进度生成当日任务。</li>
-              <li>每天最多一个主线目标，避免多线并行内耗。</li>
-              <li>完成保底任务就算今天没有断线。</li>
-              <li>未完成的任务不会累加到第二天，不制造欠债雪球。</li>
-              <li>状态不好时系统会自动降强度。</li>
+              {[1, 2, 3, 4, 5, 6, 7].map((number) => (
+                <li key={number}>{t(`dashboard.instruction${number}` as TranslationKey)}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -112,9 +120,9 @@ export default function Dashboard() {
 
   // --- 输入暗号 ---
   const handlePhraseSubmit = () => {
-    const phrase = cycle.launchPhrase || '开始学习';
+    const phrase = cycle.launchPhrase || t('cycle.defaultLaunchPhrase');
     if (phraseInput.trim() !== phrase) {
-      setPhraseError('暗号不正确，请重试。');
+      setPhraseError(t('dashboard.phraseError'));
       return;
     }
     setPhraseError('');
@@ -147,21 +155,21 @@ export default function Dashboard() {
     if (isClosed) {
       return (
         <div className="alert alert-success">
-          ✅ 今天已收工。好好休息，明天继续。<br />
+          ✅ {t('dashboard.closedMessage')}<br />
           <button className="btn btn-secondary btn-sm" style={{ marginTop: '8px' }} onClick={() => navigate('/today')}>
-            查看今日反馈
+            {t('dashboard.viewFeedback')}
           </button>
         </div>
       );
     }
 
     if (todayOverride) {
-      const labels: Record<string, string> = {
-        rest: '休息日', holiday: '放假日', exam: '考试日', blocked: '客观阻断日',
-      };
       return (
         <div className="alert alert-info">
-          📌 今天已标记为{labels[todayOverride.mode] || '特殊日'}：{todayOverride.reason}
+          📌 {t('dashboard.specialDay', {
+            mode: t(MODE_KEYS[todayOverride.mode]),
+            reason: todayOverride.reason,
+          })}
         </div>
       );
     }
@@ -169,8 +177,8 @@ export default function Dashboard() {
     if (!isTodayStudyDay) {
       return (
         <div className="alert alert-info">
-          🌿 今天是休息日。好好恢复，可以回顾一下学习内容。<br />
-          如果想标记今天为特殊日，请前往设置页。
+          🌿 {t('dashboard.restMessage')}<br />
+          {t('dashboard.markSpecialHint')}
         </div>
       );
     }
@@ -178,12 +186,12 @@ export default function Dashboard() {
     if (healthRequired) {
       return (
         <div className="card">
-          <div className="card-title">🏃 健康前置</div>
+          <div className="card-title">🏃 {t('dashboard.healthGate')}</div>
           <div className="card-body" style={{ marginTop: '8px' }}>
-            <p>{cycle.healthGateText || '请完成户外活动 / 运动 / 睡眠恢复等健康例行。'}</p>
+            <p>{cycle.healthGateText || t('dashboard.defaultHealthGate')}</p>
             <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-              <button className="btn btn-success" onClick={handleHealthPass}>✅ 我已完成</button>
-              <button className="btn btn-secondary" onClick={handleDayException}>🔓 今日特例放行</button>
+              <button className="btn btn-success" onClick={handleHealthPass}>✅ {t('dashboard.healthDone')}</button>
+              <button className="btn btn-secondary" onClick={handleDayException}>🔓 {t('dashboard.healthException')}</button>
             </div>
           </div>
         </div>
@@ -193,9 +201,9 @@ export default function Dashboard() {
     if (todayPlan && todayPlan.status !== 'notStarted') {
       return (
         <div className="alert alert-success">
-          📋 今日计划已生成。
+          📋 {t('dashboard.planGenerated')}
           <button className="btn btn-primary btn-sm" style={{ marginLeft: '8px' }} onClick={() => navigate('/today')}>
-            进入今日任务
+            {t('dashboard.enterPlan')}
           </button>
         </div>
       );
@@ -204,21 +212,21 @@ export default function Dashboard() {
     // 等待输入暗号
     return (
       <div className="card">
-        <div className="card-title">🔑 输入启动暗号</div>
+        <div className="card-title">🔑 {t('dashboard.launchPhrase')}</div>
         <div className="card-body" style={{ marginTop: '8px' }}>
           <p style={{ marginBottom: '12px', color: 'var(--color-text-muted)' }}>
-            输入暗号以生成今日学习计划
+            {t('dashboard.launchHint')}
           </p>
           <div className="phrase-input-wrap">
             <input
               className="form-input"
               type="text"
-              placeholder="输入暗号..."
+              placeholder={t('dashboard.launchPlaceholder')}
               value={phraseInput}
               onChange={(e) => { setPhraseInput(e.target.value); setPhraseError(''); }}
               onKeyDown={(e) => e.key === 'Enter' && handlePhraseSubmit()}
             />
-            <button className="btn btn-primary" onClick={handlePhraseSubmit}>启动</button>
+            <button className="btn btn-primary" onClick={handlePhraseSubmit}>{t('dashboard.launch')}</button>
           </div>
           {phraseError && <p style={{ color: 'var(--color-danger)', fontSize: '0.85rem', marginTop: '8px' }}>{phraseError}</p>}
         </div>
@@ -237,10 +245,10 @@ export default function Dashboard() {
 
     return (
       <div className="card">
-        <div className="card-title">📊 最近 7 天节奏</div>
+        <div className="card-title">📊 {t('dashboard.recentRhythm')}</div>
         <div className="card-body" style={{ marginTop: '8px' }}>
           {recent7.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)' }}>暂无数据</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('common.none')}</p>
           ) : (
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
               {recent7.map((ci) => {
@@ -254,7 +262,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={ci.id}
-                    title={`${ci.date}: ${ci.todayCompletionPercent}% - ${ci.rhythmStatus}`}
+                    title={`${ci.date}: ${ci.todayCompletionPercent}% - ${t(RHYTHM_KEYS[ci.rhythmStatus])}`}
                     style={{
                       width: '32px',
                       height: '32px',
@@ -283,13 +291,13 @@ export default function Dashboard() {
   const renderWarnings = () => {
     const warnings: string[] = [];
     if (recentLowDays >= 2) {
-      warnings.push('最近完成率偏低，系统已自动降强度。今天完成保底任务就算成功。');
+      warnings.push(t('dashboard.lowCompletionWarning'));
     }
     if (unclosedDays >= 3) {
-      warnings.push('你已经连续多天未收工。建议今天收工一次，帮助系统校准节奏。');
+      warnings.push(t('dashboard.unclosedWarning'));
     }
     if (activeGoals.length > 5) {
-      warnings.push('当前激活目标较多（' + activeGoals.length + ' 个），考虑停用部分低优先级目标。');
+      warnings.push(t('dashboard.tooManyGoalsWarning', { count: activeGoals.length }));
     }
 
     if (warnings.length === 0) return null;
@@ -306,7 +314,7 @@ export default function Dashboard() {
     <div>
       <h1 className="page-title">📚 {cycle.name}</h1>
       <p className="page-subtitle">
-        {today} · 第 {dayIdx} 天 · {isTodayStudyDay ? '📖 学习日' : '🌿 休息日'} · 周期进度 {cycleProgress}%
+        {today} · {t('dashboard.dayIndex', { count: dayIdx })} · {isTodayStudyDay ? `📖 ${t('dashboard.studyDay')}` : `🌿 ${t('dashboard.restDay')}`} · {t('dashboard.cycleProgress', { percent: cycleProgress })}
       </p>
 
       {renderWarnings()}
@@ -315,14 +323,14 @@ export default function Dashboard() {
       <div className="grid-2">
         <div className="card stat-card">
           <div className="stat-value">{cycleProgress}%</div>
-          <div className="stat-label">周期总进度</div>
+          <div className="stat-label">{t('dashboard.totalProgress')}</div>
           <div className="progress-bar" style={{ marginTop: '8px' }}>
             <div className="progress-bar-fill progress-fill-primary" style={{ width: `${cycleProgress}%` }} />
           </div>
         </div>
         <div className="card stat-card">
           <div className="stat-value">{activeGoals.length}</div>
-          <div className="stat-label">激活目标数</div>
+          <div className="stat-label">{t('dashboard.activeGoalCount')}</div>
         </div>
       </div>
 
@@ -330,7 +338,7 @@ export default function Dashboard() {
 
       <div style={{ marginTop: 'var(--spacing-lg)' }}>
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>
-          标记今天为特殊日
+          {t('dashboard.markToday')}
         </button>
       </div>
     </div>

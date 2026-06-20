@@ -1,6 +1,7 @@
 // ============================================================
 // 学习系统陪跑器 - 核心类型定义
 // ============================================================
+import type { Language, LocalizedMessage } from './i18n/messages';
 
 // --- 学习周期 ---
 export interface StudyCycle {
@@ -82,6 +83,7 @@ export interface DailyPlan {
   tasks: TaskItem[];
   status: PlanStatus;
   generatedReason: string;    // 为什么今天这样安排
+  generatedReasonMessage?: LocalizedMessage;
   userState: UserState | '';  // 用户自评状态
   notes: string;
   blockers: string;           // 客观阻断说明
@@ -98,6 +100,7 @@ export interface TaskItem {
   id: string;
   goalId: string;
   title: string;
+  titleMessage?: LocalizedMessage;
   level: TaskLevel;
   type: TaskType;
   targetAmount: number;
@@ -105,6 +108,7 @@ export interface TaskItem {
   completionAmount: number;
   status: TaskStatus;
   description: string;
+  descriptionMessage?: LocalizedMessage;
   notes: string;
 }
 
@@ -123,7 +127,9 @@ export interface CheckIn {
   expectedProgressPercent: number;
   rhythmStatus: RhythmStatus;
   summary: string;
+  summaryMessage?: LocalizedMessage;
   suggestion: string;
+  suggestionMessages?: LocalizedMessage[];
   blockers: string;
   isClosed: boolean;
   createdAt: string;
@@ -141,6 +147,7 @@ export interface DayOverride {
 
 // --- 应用设置 ---
 export interface AppSettings {
+  language?: Language;
   launchPhrase?: string;
   hideRawAmountsInFeedback?: boolean;
   healthGateEnabled?: boolean;
