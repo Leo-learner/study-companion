@@ -8,25 +8,39 @@ import CheckInView from './pages/CheckInView';
 import History from './pages/History';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
+import { useI18n } from './i18n/I18nProvider';
+import { TranslationKey } from './i18n/messages';
 
-const NAV_ITEMS = [
-  { to: '/', label: '首页', icon: '🏠' },
-  { to: '/today', label: '今日任务', icon: '📋' },
-  { to: '/goals', label: '目标', icon: '🎯' },
-  { to: '/history', label: '历史', icon: '📅' },
-  { to: '/review', label: '复盘', icon: '📊' },
-  { to: '/settings', label: '设置', icon: '⚙️' },
+const NAV_ITEMS: Array<{ to: string; labelKey: TranslationKey; icon: string }> = [
+  { to: '/', labelKey: 'nav.home', icon: '🏠' },
+  { to: '/today', labelKey: 'nav.today', icon: '📋' },
+  { to: '/goals', labelKey: 'nav.goals', icon: '🎯' },
+  { to: '/history', labelKey: 'nav.history', icon: '📅' },
+  { to: '/review', labelKey: 'nav.review', icon: '📊' },
+  { to: '/settings', labelKey: 'nav.settings', icon: '⚙️' },
 ];
 
 export default function App() {
   const location = useLocation();
   const currentPath = location.pathname;
+  const { language, t, toggleLanguage } = useI18n();
 
   return (
     <div className="app-layout">
       <aside className="app-sidebar">
-        <div className="app-sidebar-logo">
-          <span>📚</span> 学习陪跑
+        <div className="app-sidebar-header">
+          <div className="app-sidebar-logo">
+            <span>📚</span> {t('app.brand')}
+          </div>
+          <button
+            className="language-toggle"
+            type="button"
+            onClick={toggleLanguage}
+            aria-label={language === 'zh' ? t('language.switchToEnglish') : t('language.switchToChinese')}
+            title={language === 'zh' ? t('language.switchToEnglish') : t('language.switchToChinese')}
+          >
+            {language === 'zh' ? 'EN' : '中文'}
+          </button>
         </div>
         <nav className="app-nav">
           {NAV_ITEMS.map((item) => (
@@ -37,7 +51,7 @@ export default function App() {
               className={({ isActive }) => isActive ? 'active' : ''}
             >
               <span className="app-nav-icon">{item.icon}</span>
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -56,7 +70,7 @@ export default function App() {
           </Routes>
         </div>
         <div className="core-reminder">
-          开心和健康最重要，学习不是用来压迫自己和否定自己的。
+          {t('app.reminder')}
         </div>
       </main>
     </div>

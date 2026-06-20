@@ -118,10 +118,36 @@ a:hover {
   font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--color-primary);
-  margin-bottom: var(--spacing-xl);
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+}
+
+.app-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xl);
+}
+
+.language-toggle {
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-bg);
+  color: var(--color-primary-dark);
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.language-toggle:hover,
+.language-toggle:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
 }
 
 .app-nav {
@@ -665,10 +691,13 @@ a:hover {
   }
 
   .app-sidebar-logo {
-    margin-bottom: var(--spacing-xs);
     margin-right: 0;
     font-size: var(--font-size-base);
     white-space: nowrap;
+  }
+
+  .app-sidebar-header {
+    margin-bottom: var(--spacing-xs);
   }
 
   .app-nav {

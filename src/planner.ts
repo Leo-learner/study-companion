@@ -15,6 +15,7 @@ import {
   generateId,
 } from './types';
 import { isStudyDay, getDayIndex, calculateGoalProgress, countRecentLowCompletion } from './progress';
+import type { LocalizedMessage, TranslationKey } from './i18n/messages';
 
 function getHealthGateStatus(cycle: StudyCycle, healthGatePassed: boolean): HealthGateStatus {
   if (!cycle.healthGateEnabled) return 'notRequired';
@@ -74,6 +75,21 @@ function generateTaskTitle(
   return `[${levelLabel}] ${action} ${goal.name}`;
 }
 
+const taskActionKeys: Record<GoalCategory, TranslationKey> = {
+  course: 'plan.action.course',
+  problems: 'plan.action.problems',
+  memory: 'plan.action.memory',
+  reading: 'plan.action.reading',
+  project: 'plan.action.project',
+  custom: 'plan.action.custom',
+};
+
+const taskLevelKeys: Record<'minimum' | 'recommended' | 'optional', TranslationKey> = {
+  minimum: 'plan.level.minimum',
+  recommended: 'plan.level.recommended',
+  optional: 'plan.level.optional',
+};
+
 // --- 生成保底任务目标量 ---
 function getMinimumAmount(goal: StudyGoal): number {
   // 保底任务量 = 总量的 2-5%，最少1个单位
@@ -116,6 +132,12 @@ function createTask(
   level: 'minimum' | 'recommended' | 'optional'
 ): TaskItem {
   const type = mapGoalCategoryToTaskType(goal.category);
+  const hint =
+    level === 'minimum'
+      ? goal.minimumTaskHint
+      : level === 'recommended'
+        ? goal.recommendedTaskHint
+        : goal.optionalTaskHint;
   const amount =
     level === 'minimum'
       ? getMinimumAmount(goal)
@@ -127,6 +149,16 @@ function createTask(
     id: generateId(),
     goalId: goal.id,
     title: generateTaskTitle(goal, level, type),
+    titleMessage: hint.trim()
+      ? undefined
+      : {
+          key: 'plan.taskTitle',
+          values: {
+            level: { key: taskLevelKeys[level] },
+            action: { key: taskActionKeys[goal.category] },
+            goalName: goal.name,
+          },
+        },
     level,
     type,
     targetAmount: amount,
@@ -134,6 +166,7 @@ function createTask(
     completionAmount: 0,
     status: 'notStarted',
     description: level === 'optional' ? '（可不做）状态好时再完成' : '',
+    descriptionMessage: level === 'optional' ? { key: 'plan.optionalDescription' } : undefined,
     notes: '',
   };
 }
@@ -164,6 +197,7 @@ export function generateDailyPlan(
       tasks: [],
       status: 'active',
       generatedReason: '没有激活的学习目标，请先创建一个学习目标。',
+      generatedReasonMessage: { key: 'plan.noActiveGoals' },
       userState: '',
       notes: '',
       blockers: '',
@@ -180,7 +214,14 @@ export function generateDailyPlan(
 
   // 3. 检查是否是休息日（非学习日）
   if (!isStudyDay(cycle, date)) {
-    return createRestPlan(cycle, date, 'rest', '今天是休息日，好好恢复。', healthGatePassed);
+    return createRestPlan(
+      cycle,
+      date,
+      'rest',
+      '今天是休息日，好好恢复。',
+      { key: 'plan.restReason' },
+      healthGatePassed,
+    );
   }
 
   // 4. 健康前置检查
@@ -196,6 +237,7 @@ export function generateDailyPlan(
       tasks: [],
       status: 'active',
       generatedReason: '健康前置未完成，请先完成健康例行再启动今日计划。',
+      generatedReasonMessage: { key: 'plan.healthPending' },
       userState: '',
       notes: '',
       blockers: '',
@@ -250,11 +292,14 @@ export function generateDailyPlan(
 
   // 8. 生成原因说明
   let reason = '';
+  let reasonMessage: LocalizedMessage;
   if (mode === 'light') {
     reason = '最近完成率偏低，今天自动切换轻量模式，只保留保底任务。';
+    reasonMessage = { key: 'plan.lightReason' };
   } else {
     const goalNames = mainGoals.map((g) => g.name).join('、');
     reason = `今日主线目标：${goalNames}。按正常节奏推进。`;
+    reasonMessage = { key: 'plan.mainGoalReason', values: { goalNames: mainGoals.map((g) => g.name) } };
   }
 
   return {
@@ -268,6 +313,7 @@ export function generateDailyPlan(
     tasks,
     status: 'active',
     generatedReason: reason,
+    generatedReasonMessage: reasonMessage,
     userState: '',
     notes: '',
     blockers: '',
@@ -282,6 +328,7 @@ function createRestPlan(
   date: string,
   mode: PlanMode,
   reason: string,
+  reasonMessage: LocalizedMessage,
   healthGatePassed: boolean
 ): DailyPlan {
   return {
@@ -297,6 +344,7 @@ function createRestPlan(
         id: generateId(),
         goalId: '',
         title: '今天是休息日，可以回顾一下学习内容，或做一些轻松的复习。',
+        titleMessage: { key: 'plan.restTaskTitle' },
         level: 'optional',
         type: 'review',
         targetAmount: 0,
@@ -304,11 +352,13 @@ function createRestPlan(
         completionAmount: 0,
         status: 'notStarted',
         description: '休息日不强制学习，好好恢复。',
+        descriptionMessage: { key: 'plan.restTaskDescription' },
         notes: '',
       },
     ],
     status: 'active',
     generatedReason: reason,
+    generatedReasonMessage: reasonMessage,
     userState: '',
     notes: '',
     blockers: '',
@@ -321,7 +371,7 @@ function createRestPlan(
 function createOverridePlan(
   cycle: StudyCycle,
   date: string,
-  mode: PlanMode,
+  mode: DayOverride['mode'],
   reason: string,
   healthGatePassed: boolean
 ): DailyPlan {
@@ -331,6 +381,13 @@ function createOverridePlan(
     exam: '考试日',
     blocked: '客观阻断日',
   };
+  const modeMessageKeys: Record<DayOverride['mode'], TranslationKey> = {
+    rest: 'plan.mode.rest',
+    holiday: 'plan.mode.holiday',
+    exam: 'plan.mode.exam',
+    blocked: 'plan.mode.blocked',
+  };
+  const modeValue = { key: modeMessageKeys[mode] };
   return {
     id: generateId(),
     cycleId: cycle.id,
@@ -344,6 +401,7 @@ function createOverridePlan(
         id: generateId(),
         goalId: '',
         title: `今天是${modeLabels[mode] || '特殊日'}：${reason}`,
+        titleMessage: { key: 'plan.specialTitle', values: { mode: modeValue, reason } },
         level: 'optional',
         type: 'review',
         targetAmount: 0,
@@ -351,11 +409,13 @@ function createOverridePlan(
         completionAmount: 0,
         status: 'notStarted',
         description: mode === 'blocked' ? '客观阻断日，只做轻量维护。' : '不生成正常学习任务。',
+        descriptionMessage: { key: mode === 'blocked' ? 'plan.blockedDescription' : 'plan.specialDescription' },
         notes: '',
       },
     ],
     status: 'active',
     generatedReason: `${modeLabels[mode] || '特殊标记'}：${reason}`,
+    generatedReasonMessage: { key: 'plan.specialReason', values: { mode: modeValue, reason } },
     userState: '',
     notes: '',
     blockers: mode === 'blocked' ? reason : '',

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getActiveCycle, saveCycle, archiveCycle } from '../storage';
-import { StudyCycle, DayRule, DayRuleType, generateId, todayStr, DEFAULT_LAUNCH_PHRASE } from '../types';
+import { StudyCycle, DayRule, DayRuleType, generateId, todayStr } from '../types';
+import { useI18n } from '../i18n/I18nProvider';
+import { translate, TranslationKey } from '../i18n/messages';
 
 interface Props {
   onCreated?: () => void;
@@ -11,6 +13,8 @@ interface Props {
 export default function CycleSetup({ onCreated, editMode }: Props) {
   const existing = getActiveCycle();
   const navigate = useNavigate();
+  const { language, t } = useI18n();
+  const previousLanguage = useRef(language);
 
   const [name, setName] = useState(existing?.name || '');
   const [startDate, setStartDate] = useState(existing?.startDate || todayStr());
@@ -22,12 +26,36 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
     existing?.dayRule?.activeWeekdays || [1, 2, 3, 4, 5]
   );
   const [healthGateEnabled, setHealthGateEnabled] = useState(existing?.healthGateEnabled ?? false);
-  const [healthGateText, setHealthGateText] = useState(existing?.healthGateText || '完成户外活动 / 运动 / 睡眠恢复');
-  const [launchPhrase, setLaunchPhrase] = useState(existing?.launchPhrase || DEFAULT_LAUNCH_PHRASE);
+  const [healthGateText, setHealthGateText] = useState(
+    existing ? existing.healthGateText : t('cycle.defaultHealthText'),
+  );
+  const [launchPhrase, setLaunchPhrase] = useState(
+    existing ? existing.launchPhrase : t('cycle.defaultLaunchPhrase'),
+  );
   const [maxMainGoalsPerDay, setMaxMainGoalsPerDay] = useState(existing?.maxMainGoalsPerDay || 1);
   const [hideAmounts, setHideAmounts] = useState(existing?.hideRawAmountsInFeedback ?? true);
 
-  const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+  const weekdayKeys: TranslationKey[] = [
+    'cycle.weekday0', 'cycle.weekday1', 'cycle.weekday2', 'cycle.weekday3',
+    'cycle.weekday4', 'cycle.weekday5', 'cycle.weekday6',
+  ];
+
+  useEffect(() => {
+    if (!existing) {
+      const oldLanguage = previousLanguage.current;
+      setHealthGateText((current) =>
+        current === translate(oldLanguage, 'cycle.defaultHealthText')
+          ? t('cycle.defaultHealthText')
+          : current,
+      );
+      setLaunchPhrase((current) =>
+        current === translate(oldLanguage, 'cycle.defaultLaunchPhrase')
+          ? t('cycle.defaultLaunchPhrase')
+          : current,
+      );
+    }
+    previousLanguage.current = language;
+  }, [existing?.id, language, t]);
 
   const toggleWeekday = (d: number) => {
     setActiveWeekdays((prev) =>
@@ -57,7 +85,7 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
       dayRule: buildDayRule(),
       healthGateEnabled,
       healthGateText,
-      launchPhrase: launchPhrase.trim() || DEFAULT_LAUNCH_PHRASE,
+      launchPhrase: launchPhrase.trim() || t('cycle.defaultLaunchPhrase'),
       maxMainGoalsPerDay,
       hideRawAmountsInFeedback: hideAmounts,
       createdAt: existing?.createdAt || new Date().toISOString(),
@@ -69,7 +97,7 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
   };
 
   const handleArchive = () => {
-    if (existing && confirm('确定要归档当前学习周期吗？归档后可以创建新周期。')) {
+    if (existing && confirm(t('cycle.archiveConfirm'))) {
       archiveCycle(existing.id);
       navigate('/');
     }
@@ -77,56 +105,56 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
 
   return (
     <div>
-      <h1 className="page-title">{editMode ? '⚙️ 编辑学习周期' : '✨ 创建学习周期'}</h1>
-      <p className="page-subtitle">设置你的学习周期规则，系统将据此生成每日任务。</p>
+      <h1 className="page-title">{editMode ? `⚙️ ${t('cycle.editTitle')}` : `✨ ${t('cycle.createTitle')}`}</h1>
+      <p className="page-subtitle">{t('cycle.subtitle')}</p>
 
       <div className="card">
         <div className="form-group">
-          <label className="form-label">学习周期名称</label>
+          <label className="form-label">{t('cycle.name')}</label>
           <input
             className="form-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="例如：春季备考周期、编程学习计划"
+            placeholder={t('cycle.namePlaceholder')}
           />
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">开始日期</label>
+            <label className="form-label">{t('cycle.startDate')}</label>
             <input className="form-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">结束日期</label>
+            <label className="form-label">{t('cycle.endDate')}</label>
             <input className="form-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
         </div>
 
         <div className="form-group">
-          <label className="form-label">学习日规则</label>
+          <label className="form-label">{t('cycle.dayRule')}</label>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '12px' }}>
             <label className="form-checkbox">
               <input type="radio" name="dayRule" checked={dayRuleType === 'weekday'} onChange={() => setDayRuleType('weekday')} />
-              周一至周五学习，周末休息
+              {t('cycle.weekdays')}
             </label>
             <label className="form-checkbox">
               <input type="radio" name="dayRule" checked={dayRuleType === 'cycle'} onChange={() => setDayRuleType('cycle')} />
-              学习 N 天休 M 天
+              {t('cycle.cycleRule')}
             </label>
             <label className="form-checkbox">
               <input type="radio" name="dayRule" checked={dayRuleType === 'customWeek'} onChange={() => setDayRuleType('customWeek')} />
-              自定义每周学习日
+              {t('cycle.customWeek')}
             </label>
           </div>
 
           {dayRuleType === 'cycle' && (
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">学习天数</label>
+                <label className="form-label">{t('cycle.studyDays')}</label>
                 <input className="form-input" type="number" min={1} max={30} value={studyDays} onChange={(e) => setStudyDays(Number(e.target.value))} />
               </div>
               <div className="form-group">
-                <label className="form-label">休息天数</label>
+                <label className="form-label">{t('cycle.restDays')}</label>
                 <input className="form-input" type="number" min={1} max={30} value={restDays} onChange={(e) => setRestDays(Number(e.target.value))} />
               </div>
             </div>
@@ -140,7 +168,7 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
                   className={`btn btn-sm ${activeWeekdays.includes(d) ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => toggleWeekday(d)}
                 >
-                  周{weekdayLabels[d]}
+                  {t(weekdayKeys[d])}
                 </button>
               ))}
             </div>
@@ -152,37 +180,37 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
         <div className="form-group">
           <label className="form-checkbox">
             <input type="checkbox" checked={healthGateEnabled} onChange={(e) => setHealthGateEnabled(e.target.checked)} />
-            <span>开启健康前置</span>
+            <span>{t('cycle.enableHealth')}</span>
           </label>
-          <p className="form-hint">开启后，每天需要先完成健康例行才能启动学习计划。</p>
+          <p className="form-hint">{t('cycle.healthHint')}</p>
         </div>
 
         {healthGateEnabled && (
           <div className="form-group">
-            <label className="form-label">健康前置说明</label>
+            <label className="form-label">{t('cycle.healthText')}</label>
             <input
               className="form-input"
               value={healthGateText}
               onChange={(e) => setHealthGateText(e.target.value)}
-              placeholder="完成户外活动 / 运动 / 睡眠恢复 / 休息检查"
+              placeholder={t('cycle.healthPlaceholder')}
             />
           </div>
         )}
 
         <div className="form-group">
-          <label className="form-label">启动暗号</label>
+          <label className="form-label">{t('cycle.launchPhrase')}</label>
           <input
             className="form-input"
             value={launchPhrase}
             onChange={(e) => setLaunchPhrase(e.target.value)}
-            placeholder={DEFAULT_LAUNCH_PHRASE}
+            placeholder={t('cycle.defaultLaunchPhrase')}
           />
-          <p className="form-hint">每天输入暗号后才能生成当日学习计划。</p>
+          <p className="form-hint">{t('cycle.launchPhraseHint')}</p>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">每日最多几个主线目标</label>
+            <label className="form-label">{t('cycle.maxMainGoals')}</label>
             <input
               className="form-input"
               type="number"
@@ -191,28 +219,28 @@ export default function CycleSetup({ onCreated, editMode }: Props) {
               value={maxMainGoalsPerDay}
               onChange={(e) => setMaxMainGoalsPerDay(Number(e.target.value))}
             />
-            <p className="form-hint">默认 1 个，避免多线并行导致内耗。</p>
+            <p className="form-hint">{t('cycle.maxMainGoalsHint')}</p>
           </div>
         </div>
 
         <div className="form-group">
           <label className="form-checkbox">
             <input type="checkbox" checked={hideAmounts} onChange={(e) => setHideAmounts(e.target.checked)} />
-            <span>打卡反馈中隐藏具体数量（只显示百分比）</span>
+            <span>{t('cycle.hideAmounts')}</span>
           </label>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '12px' }}>
         <button className="btn btn-primary btn-lg" onClick={handleSave} disabled={!name.trim()}>
-          {editMode ? '💾 保存修改' : '✅ 创建学习周期'}
+          {editMode ? `💾 ${t('cycle.saveChanges')}` : `✅ ${t('cycle.create')}`}
         </button>
         {!onCreated && (
-          <button className="btn btn-secondary btn-lg" onClick={() => navigate('/')}>取消</button>
+          <button className="btn btn-secondary btn-lg" onClick={() => navigate('/')}>{t('common.cancel')}</button>
         )}
         {existing && (
           <button className="btn btn-danger btn-lg" onClick={handleArchive} style={{ marginLeft: 'auto' }}>
-            📦 归档当前周期
+            📦 {t('cycle.archive')}
           </button>
         )}
       </div>

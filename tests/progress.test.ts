@@ -7,6 +7,8 @@ import {
   isMinimumCompleted,
 } from '../src/progress';
 import { DailyPlan, StudyCycle, StudyGoal, TaskItem, localDateStr } from '../src/types';
+import { buildCheckInMessages } from '../src/checkinMessages';
+import { resolveLocalizedMessage } from '../src/i18n/messages';
 
 const cycle: StudyCycle = {
   id: 'cycle-1',
@@ -119,5 +121,35 @@ describe('daily plan generation', () => {
     expect(result.status).toBe('active');
     expect(result.healthGateStatus).toBe('notRequired');
     expect(result.tasks.length).toBeGreaterThan(0);
+  });
+
+  it('adds translatable metadata to generated tasks and plan reasons', () => {
+    const result = generateDailyPlan(cycle, [goal], '2026-06-01', [], [], [], true);
+    expect(result.generatedReasonMessage?.key).toBe('plan.mainGoalReason');
+    expect(result.tasks[0].titleMessage?.key).toBe('plan.taskTitle');
+    expect(resolveLocalizedMessage('en', result.tasks[0].titleMessage, result.tasks[0].title)).toContain(goal.name);
+  });
+
+  it('keeps custom task text verbatim without attaching translation metadata', () => {
+    const customized = { ...goal, minimumTaskHint: 'Read my own notes 原样保留' };
+    const result = generateDailyPlan(cycle, [customized], '2026-06-01', [], [], [], true);
+    expect(result.tasks[0].title).toBe('Read my own notes 原样保留');
+    expect(result.tasks[0].titleMessage).toBeUndefined();
+    expect(resolveLocalizedMessage('en', result.tasks[0].titleMessage, result.tasks[0].title)).toBe('Read my own notes 原样保留');
+  });
+
+  it('adds translatable metadata to special-day and close-out feedback', () => {
+    const special = generateDailyPlan(cycle, [goal], '2026-06-01', [], [], [{
+      id: 'override-1', cycleId: cycle.id, date: '2026-06-01', mode: 'holiday', reason: 'Family day 家庭日', createdAt: '',
+    }], true);
+    expect(special.generatedReasonMessage?.key).toBe('plan.specialReason');
+    expect(special.tasks[0].titleMessage?.key).toBe('plan.specialTitle');
+    expect(resolveLocalizedMessage('en', special.tasks[0].titleMessage, special.tasks[0].title)).toContain('Family day 家庭日');
+
+    const feedback = buildCheckInMessages(true, 'stable', 'tired');
+    expect(feedback.summaryMessage.key).toBe('checkin.minimumCompleted');
+    expect(feedback.suggestionMessages.map((message) => message.key)).toEqual([
+      'checkin.suggestion.tired', 'checkin.suggestion.stable',
+    ]);
   });
 });
