@@ -4,30 +4,30 @@
    ============================================================ */
 
 :root {
-  /* 主色调 - 柔和蓝绿 */
-  --color-primary: #5b9aa0;
-  --color-primary-light: #7db8be;
-  --color-primary-dark: #3e7a80;
-  --color-primary-bg: #e8f4f5;
+  /* 主色调 - 向 dkz12345 主站靠拢 */
+  --color-primary: #287f82;
+  --color-primary-light: #5ad5da;
+  --color-primary-dark: #0f595b;
+  --color-primary-bg: #e8f6f3;
 
   /* 辅助色 */
-  --color-success: #6aaa8a;
+  --color-success: #3d9255;
   --color-success-bg: #e8f5ed;
-  --color-warning: #c9a96e;
-  --color-warning-bg: #fef9ee;
-  --color-danger: #c97e6e;
-  --color-danger-bg: #fdf0ec;
-  --color-info: #6e9ec9;
-  --color-info-bg: #eaf2fa;
+  --color-warning: #c79649;
+  --color-warning-bg: #fbf4e8;
+  --color-danger: #c86d63;
+  --color-danger-bg: #fbecea;
+  --color-info: #287f82;
+  --color-info-bg: #e8f6f3;
 
   /* 中性色 */
-  --color-bg: #faf9f7;
-  --color-surface: #ffffff;
-  --color-border: #e8e4df;
-  --color-border-light: #f0ede9;
-  --color-text: #2d2a26;
-  --color-text-secondary: #6b6560;
-  --color-text-muted: #9a938b;
+  --color-bg: #f4f7f4;
+  --color-surface: #fbfcf8;
+  --color-border: rgba(11, 25, 24, 0.12);
+  --color-border-light: rgba(11, 25, 24, 0.08);
+  --color-text: #0c1414;
+  --color-text-secondary: #52615f;
+  --color-text-muted: #879492;
 
   /* 间距 */
   --spacing-xs: 0.25rem;
@@ -44,9 +44,9 @@
   --radius-xl: 24px;
 
   /* 阴影 */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg: 0 8px 30px rgba(0,0,0,0.10);
+  --shadow-sm: 0 1px 3px rgba(11,25,24,0.06);
+  --shadow-md: 0 4px 12px rgba(11,25,24,0.08);
+  --shadow-lg: 0 8px 30px rgba(11,25,24,0.10);
 
   /* 字体 */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
