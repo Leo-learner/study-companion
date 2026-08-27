@@ -59,29 +59,15 @@ export default function Dashboard() {
     return (
       <div>
         <div className="welcome-hero">
-          <h1>📚 {t('dashboard.welcomeTitle')}</h1>
-          <p>
-            {t('dashboard.welcomeText').split('\n').map((line, index) => (
-              <React.Fragment key={line}>{index > 0 && <br />}{line}</React.Fragment>
-            ))}
-          </p>
+          <h1>{t('dashboard.welcomeTitle')}</h1>
+          <p>{t('ui.encouragement')}</p>
           <div className="welcome-actions">
             <button className="btn btn-primary btn-lg" onClick={() => setShowCycleSetup(true)}>
-              ✨ {t('dashboard.createCycle')}
+              {t('dashboard.createCycle')}
             </button>
             <button className="btn btn-secondary btn-lg" onClick={() => navigate('/settings')}>
-              📥 {t('dashboard.importData')}
+              {t('dashboard.importData')}
             </button>
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-body" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
-            <strong>💡 {t('dashboard.instructions')}</strong>
-            <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-              {[1, 2, 3, 4, 5, 6, 7].map((number) => (
-                <li key={number}>{t(`dashboard.instruction${number}` as TranslationKey)}</li>
-              ))}
-            </ul>
           </div>
         </div>
       </div>
@@ -271,7 +257,7 @@ export default function Dashboard() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'white',
+                      color: 'var(--color-bg)',
                       fontSize: '0.7rem',
                       fontWeight: 'bold',
                     }}
@@ -320,6 +306,7 @@ export default function Dashboard() {
       {renderWarnings()}
       {renderTodayStatus()}
 
+      <details className="learning-overview"><summary>{t('ui.reviewDetails')}</summary>
       <div className="grid-2">
         <div className="card stat-card">
           <div className="stat-value">{cycleProgress}%</div>
@@ -335,6 +322,7 @@ export default function Dashboard() {
       </div>
 
       {renderRhythmOverview()}
+      </details>
 
       <div style={{ marginTop: 'var(--spacing-lg)' }}>
         <button className="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>

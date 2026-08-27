@@ -6,6 +6,8 @@ import { CheckIn, DailyPlan, generateId, RhythmStatus, StudyGoal, TaskItem, toda
 import { TranslationKey } from '../i18n/messages';
 import { useI18n } from '../i18n/I18nProvider';
 import { buildCheckInMessages } from '../checkinMessages';
+import StudyTask, { taskGroupQuantity } from '../components/StudyTask';
+import Icon from '../components/Icon';
 
 export default function TodayPlan() {
   const { t, resolveMessage } = useI18n();
@@ -23,7 +25,11 @@ export default function TodayPlan() {
 
   useEffect(() => {
     if (!cycleId) return;
-    setPlan(getPlanForDate(cycleId, today) || null);
+    const saved = getPlanForDate(cycleId, today);
+    setPlan(saved || null);
+    setUserState(saved?.userState || 'normal');
+    setNotes(saved?.notes || '');
+    setBlockers(saved?.blockers || '');
     setGoals(getGoals(cycleId));
   }, [cycleId, today]);
 
@@ -55,6 +61,7 @@ export default function TodayPlan() {
   };
 
   const handleClose = () => {
+    if (isClosed) return;
     const todayCompletionPercent = calculateTodayCompletion(plan);
     const cumulativeCompletionPercent = calculateCycleProgress(activeGoals);
     const expectedProgressPercent = calculateExpectedProgress(cycle, today);
@@ -78,58 +85,41 @@ export default function TodayPlan() {
 
   if (showCheckIn && checkInResult) return <CheckInResultView checkIn={checkInResult} plan={plan} cycle={cycle} />;
 
-  const renderTask = (task: TaskItem) => {
-    const goal = goals.find((item) => item.id === task.goalId);
-    const icon = task.level === 'minimum' ? '🔹 ' : task.level === 'recommended' ? '📌 ' : '💡 ';
-    return <div key={task.id} className={`task-item ${task.level}`}>
-      <div className="task-check"><input type="checkbox" checked={task.status === 'completed'} onChange={() => toggleTask(task)} disabled={isClosed} /></div>
-      <div className="task-content">
-        <div className="task-title">{icon}{resolveMessage(task.titleMessage, task.title)}</div>
-        {task.description && <div className="task-desc">{resolveMessage(task.descriptionMessage, task.description)}</div>}
-        <div className="task-meta">
-          {goal && `${goal.name} · `}{t('today.target', { amount: task.targetAmount, unit: task.unitName })}
-          {task.status === 'partial' && ` · ${t('today.completed', { amount: task.completionAmount })}`}
-        </div>
-      </div>
-      <div className="task-amount">
-        {task.status !== 'skipped' && task.targetAmount > 0 && <input className="task-amount-input" type="number" min={0} max={task.targetAmount} value={task.completionAmount} onChange={(event) => updateTaskAmount(task.id, Number(event.target.value))} disabled={isClosed} />}
-        {!isClosed && <button className="btn btn-secondary btn-sm" style={{ marginLeft: '4px', fontSize: '0.7rem' }} onClick={() => updateTask(task.id, { status: 'skipped', completionAmount: 0 })} title={t('today.skipTitle')}>{t('today.skip')}</button>}
-      </div>
-    </div>;
+  const minTasks = plan.tasks.filter(task => task.level === 'minimum');
+  const recommendedTasks = plan.tasks.filter(task => task.level === 'recommended');
+  const optionalTasks = plan.tasks.filter(task => task.level === 'optional');
+  const renderTask = (task: TaskItem, primary = false) => <StudyTask key={task.id} task={task} primary={primary} closed={isClosed} onToggle={toggleTask} onAmount={updateTaskAmount} onUpdate={updateTask}/>;
+  const renderGroup = (tasks: TaskItem[], label: TranslationKey) => {
+    if (!tasks.length) return null;
+    const quantity = taskGroupQuantity(tasks);
+    return <details className="task-disclosure">
+      <summary><span>{t(label)} · {quantity ? `${quantity.amount} ${quantity.unit}` : t('ui.taskCount', {count: tasks.length})}</span><Icon name="chevron"/></summary>
+      <div className="task-disclosure-content">{tasks.map(task => renderTask(task))}</div>
+    </details>;
   };
 
-  const minTasks = plan.tasks.filter((task) => task.level === 'minimum');
-  const recommendedTasks = plan.tasks.filter((task) => task.level === 'recommended');
-  const optionalTasks = plan.tasks.filter((task) => task.level === 'optional');
-  const mainGoals = plan.mainGoalIds.map((id) => goals.find((goal) => goal.id === id)).filter(Boolean) as StudyGoal[];
-  const modeKey = `plan.mode.${plan.mode}` as TranslationKey;
-  const stateIcons: Record<UserState, string> = { good: '😊', normal: '😐', tired: '😔', bad: '😞' };
-
-  return <div>
-    <h1 className="page-title">📋 {t('today.title')}</h1>
-    <p className="page-subtitle">{today} · {t(modeKey)}</p>
-    {plan.generatedReason && <div className="alert alert-info">{resolveMessage(plan.generatedReasonMessage, plan.generatedReason)}</div>}
-    {isClosed && <div className="alert alert-success">✅ {t('today.closed')}</div>}
-    {mainGoals.length > 0 && <div className="card"><div className="card-title">🎯 {t('today.mainGoal')}</div><div className="card-body">{mainGoals.map((goal) => <span key={goal.id} className="badge badge-primary" style={{ marginRight: '8px' }}>{goal.name}</span>)}</div></div>}
-    {minTasks.length > 0 && <TaskGroup heading={`🔹 ${t('today.minimumHeading')}`} color="var(--color-primary-dark)">{minTasks.map(renderTask)}</TaskGroup>}
-    {recommendedTasks.length > 0 && <TaskGroup heading={`📌 ${t('today.recommendedHeading')}`} color="var(--color-success)">{recommendedTasks.map(renderTask)}</TaskGroup>}
-    {optionalTasks.length > 0 && <TaskGroup heading={`💡 ${t('today.optionalHeading')}`} color="var(--color-text-muted)">{optionalTasks.map(renderTask)}</TaskGroup>}
-    {plan.tasks.length === 0 && <div className="empty-state"><div className="empty-state-icon">📭</div><div className="empty-state-title">{t('today.noTasks')}</div><div className="empty-state-desc">{resolveMessage(plan.generatedReasonMessage, plan.generatedReason)}</div></div>}
-    {!isClosed && plan.status !== 'notStarted' && <div className="card">
-      <div className="card-title">📝 {t('today.closeTitle')}</div>
-      <div className="card-body">
-        <div className="form-group"><label className="form-label">{t('today.state')}</label><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{(['good', 'normal', 'tired', 'bad'] as UserState[]).map((state) => <button key={state} className={`btn btn-sm ${userState === state ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setUserState(state)}>{stateIcons[state]} {t(`today.state.${state}`)}</button>)}</div></div>
-        <div className="form-group"><label className="form-label">{t('goal.notes')}</label><textarea className="form-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t('today.notesPlaceholder')} /></div>
-        <div className="form-group"><label className="form-label">{t('today.blockers')}</label><input className="form-input" value={blockers} onChange={(event) => setBlockers(event.target.value)} placeholder={t('today.blockersPlaceholder')} /></div>
-        <button className="btn btn-success btn-lg btn-block" onClick={handleClose}>✅ {t('today.close')}</button>
-        <p className="form-hint" style={{ textAlign: 'center' }}>{t('today.closeHint')}</p>
-      </div>
-    </div>}
+  return <div className="today-page">
+    <header className="today-heading"><h1 className="page-title">{t('today.title')}</h1><p className="page-subtitle">{t('ui.encouragement')}</p></header>
+    {isClosed && <div className="alert alert-success" role="status">{t('today.closed')}</div>}
+    <div className="today-workspace">
+      <section className="today-primary" aria-label={t('ui.minimum')}>
+        {minTasks.map(task => renderTask(task, true))}
+        {!minTasks.length && <div className="card empty-state"><h2 className="empty-state-title">{t(plan.tasks.length ? 'ui.noMinimum' : 'today.noTasks')}</h2><p className="empty-state-desc">{resolveMessage(plan.generatedReasonMessage, plan.generatedReason)}</p></div>}
+      </section>
+      <aside className="today-secondary" aria-label={t('today.closeTitle')}>
+        {(recommendedTasks.length > 0 || optionalTasks.length > 0) && <div className="task-disclosure-group">{renderGroup(recommendedTasks, 'ui.recommended')}{renderGroup(optionalTasks, 'ui.optional')}</div>}
+        <details className="task-disclosure mood-disclosure">
+          <summary><span>{t('ui.moodNotes')}</span><Icon name="chevron"/></summary>
+          <div className="task-disclosure-content">
+            <fieldset className="mood-fieldset" disabled={isClosed}><legend className="form-label">{t('today.state')}</legend><div className="mood-options">{(['good', 'normal', 'tired', 'bad'] as UserState[]).map(state => <button key={state} type="button" className={`btn btn-sm ${userState === state ? 'btn-selected' : 'btn-secondary'}`} aria-pressed={userState === state} onClick={() => setUserState(state)}>{t(`today.state.${state}`)}</button>)}</div></fieldset>
+            <div className="form-group"><label className="form-label" htmlFor="today-notes">{t('goal.notes')}</label><textarea id="today-notes" className="form-textarea" value={notes} onChange={event => setNotes(event.target.value)} placeholder={t('today.notesPlaceholder')} disabled={isClosed}/></div>
+            <div className="form-group"><label className="form-label" htmlFor="today-blockers">{t('today.blockers')}</label><input id="today-blockers" className="form-input" value={blockers} onChange={event => setBlockers(event.target.value)} placeholder={t('today.blockersPlaceholder')} disabled={isClosed}/></div>
+          </div>
+        </details>
+        {plan.status !== 'notStarted' && <div className="today-finish"><button className="btn btn-secondary" type="button" onClick={handleClose} disabled={isClosed}>{isClosed ? t('common.closed') : t('ui.finish')}</button></div>}
+      </aside>
+    </div>
   </div>;
-}
-
-function TaskGroup({ heading, color, children }: { heading: string; color: string; children: React.ReactNode }) {
-  return <div style={{ marginBottom: '16px' }}><h3 style={{ fontSize: '1rem', marginBottom: '8px', color }}>{heading}</h3>{children}</div>;
 }
 
 function CheckInResultView({ checkIn, plan, cycle }: { checkIn: CheckIn; plan: DailyPlan; cycle: ReturnType<typeof getActiveCycle> }) {

@@ -219,15 +219,15 @@ export default function Settings() {
         <p className="form-hint">{t('settings.clearHint')}</p>
       </div>
 
-      <div className="card settings-section">
-        <h3>📖 {t('settings.helpSection')}</h3>
+      <details className="card settings-section">
+        <summary> {t('settings.helpSection')}</summary>
         <div className="card-body" style={{ fontSize: '0.9rem', lineHeight: 1.8 }}>
           <p><strong>{t('settings.coreIdea')}</strong></p>
           <ul style={{ paddingLeft: '20px' }}>{coreKeys.map((key) => <li key={key}>{t(`settings.${key}`)}</li>)}</ul>
           <p style={{ marginTop: '12px' }}><strong>{t('settings.dailyFlow')}</strong></p>
           <ol style={{ paddingLeft: '20px' }}>{flowKeys.map((key) => <li key={key}>{t(`settings.${key}`)}</li>)}</ol>
         </div>
-      </div>
+      </details>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import CycleSetup from './pages/CycleSetup';
 import GoalManager from './pages/GoalManager';
@@ -9,29 +9,46 @@ import History from './pages/History';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
 import { useI18n } from './i18n/I18nProvider';
+import HelpMenu from './components/HelpMenu';
+import Icon, { IconName } from './components/Icon';
 import { TranslationKey } from './i18n/messages';
 
-const NAV_ITEMS: Array<{ to: string; labelKey: TranslationKey; icon: string }> = [
-  { to: '/', labelKey: 'nav.home', icon: '🏠' },
-  { to: '/today', labelKey: 'nav.today', icon: '📋' },
-  { to: '/goals', labelKey: 'nav.goals', icon: '🎯' },
-  { to: '/history', labelKey: 'nav.history', icon: '📅' },
-  { to: '/review', labelKey: 'nav.review', icon: '📊' },
-  { to: '/settings', labelKey: 'nav.settings', icon: '⚙️' },
+const NAV_ITEMS: Array<{ to: string; labelKey: TranslationKey; icon: IconName }> = [
+  { to: '/', labelKey: 'nav.home', icon: 'home' },
+  { to: '/today', labelKey: 'nav.today', icon: 'today' },
+  { to: '/goals', labelKey: 'nav.goals', icon: 'goals' },
+  { to: '/history', labelKey: 'nav.history', icon: 'history' },
+  { to: '/review', labelKey: 'nav.review', icon: 'review' },
+  { to: '/settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
 
 export default function App() {
-  const location = useLocation();
-  const currentPath = location.pathname;
   const { language, t, toggleLanguage } = useI18n();
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('ui.skipContent')}</a>
       <aside className="app-sidebar">
         <div className="app-sidebar-header">
           <div className="app-sidebar-logo">
-            <span>📚</span> {t('app.brand')}
+            {t('app.brand')}
           </div>
+
+        </div>
+        <nav className="app-nav" aria-label={t('ui.navigation')}>
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) => isActive ? 'active' : ''}
+            >
+              <Icon name={item.icon} className="app-nav-icon"/>
+              {t(item.labelKey)}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-utilities"><HelpMenu/>
           <button
             className="language-toggle"
             type="button"
@@ -42,21 +59,8 @@ export default function App() {
             {language === 'zh' ? 'EN' : '中文'}
           </button>
         </div>
-        <nav className="app-nav">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => isActive ? 'active' : ''}
-            >
-              <span className="app-nav-icon">{item.icon}</span>
-              {t(item.labelKey)}
-            </NavLink>
-          ))}
-        </nav>
       </aside>
-      <main className="app-main">
+      <main className="app-main" id="main-content" tabIndex={-1}>
         <div className="app-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -69,9 +73,7 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
-        <div className="core-reminder">
-          {t('app.reminder')}
-        </div>
+
       </main>
     </div>
   );
