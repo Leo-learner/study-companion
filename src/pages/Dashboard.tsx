@@ -2,20 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getActiveCycle, getGoals, getPlans, getCheckIns, getOverrides, savePlan } from '../storage';
 import { generateDailyPlan } from '../planner';
-import { isStudyDay, getDayIndex, calculateCycleProgress, countRecentLowCompletion, countUnclosedDays } from '../progress';
+import {
+  isStudyDay, getDayIndex, calculateCycleProgress, calculateExpectedProgress,
+  calculateGoalProgress, countRecentLowCompletion, countUnclosedDays,
+  detectRhythmStatus, getSystemRunningStreak, getRecentDays,
+} from '../progress';
 import { StudyCycle, StudyGoal, DailyPlan, CheckIn, DayOverride, todayStr } from '../types';
-import CycleSetup from './CycleSetup';
+import Icon from '../components/Icon';
+import { RhythmChip, ModeChip, MODE_KEYS } from '../components/StatusChips';
 import { useI18n } from '../i18n/I18nProvider';
 import { TranslationKey } from '../i18n/messages';
 
-const MODE_KEYS: Record<DayOverride['mode'], TranslationKey> = {
-  rest: 'plan.mode.rest', holiday: 'plan.mode.holiday', exam: 'plan.mode.exam', blocked: 'plan.mode.blocked',
-};
-
-const RHYTHM_KEYS: Record<CheckIn['rhythmStatus'], TranslationKey> = {
-  ahead: 'rhythm.ahead', stable: 'rhythm.stable', slightlyBehind: 'rhythm.slightlyBehind',
-  behind: 'rhythm.behind', slipping: 'rhythm.slipping',
-};
+const GOAL_DOTS = ['var(--sc-primary)', 'var(--sc-rec)', 'var(--sc-rest)', 'var(--sc-low)'];
 
 export default function Dashboard() {
   const [cycle, setCycle] = useState<StudyCycle | null>(null);
@@ -27,8 +25,7 @@ export default function Dashboard() {
   const [healthPassed, setHealthPassed] = useState(false);
   const [healthException, setHealthException] = useState(false);
   const [phraseInput, setPhraseInput] = useState('');
-  const [phraseError, setPhraseError] = useState('');
-  const [showCycleSetup, setShowCycleSetup] = useState(false);
+  const [phraseError, setPhraseError] = useState(false);
   const navigate = useNavigate();
   const { t } = useI18n();
 
@@ -39,9 +36,10 @@ export default function Dashboard() {
     setCycle(c || null);
     if (c) {
       setGoals(getGoals(c.id));
-      setAllPlans(getPlans(c.id));
+      const plans = getPlans(c.id);
+      setAllPlans(plans);
       setOverrides(getOverrides(c.id));
-      const plan = getPlans(c.id).find((p) => p.date === today) || null;
+      const plan = plans.find((p) => p.date === today) || null;
       setTodayPlan(plan);
       setHealthPassed(plan?.healthGateStatus === 'passed' || plan?.healthGateStatus === 'exception');
       setHealthException(plan?.healthGateStatus === 'exception');
@@ -51,63 +49,56 @@ export default function Dashboard() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // --- 没有学习周期：显示创建向导 ---
+  // --- 空态：还没有周期 ---
   if (!cycle) {
-    if (showCycleSetup) {
-      return <CycleSetup onCreated={() => { setShowCycleSetup(false); refresh(); }} />;
-    }
     return (
-      <div>
-        <div className="welcome-hero">
-          <h1>📚 {t('dashboard.welcomeTitle')}</h1>
-          <p>
-            {t('dashboard.welcomeText').split('\n').map((line, index) => (
-              <React.Fragment key={line}>{index > 0 && <br />}{line}</React.Fragment>
-            ))}
+      <div className="empty">
+        <div className="empty-mark"><Icon name="book" size={30} /></div>
+        <div className="stack-10">
+          <h1 className="h2">{t('home.emptyTitle')}</h1>
+          <p className="pretty" style={{ fontSize: 14, lineHeight: 1.85, color: 'var(--sc-ink-2)' }}>
+            {t('home.emptyBody')}
           </p>
-          <div className="welcome-actions">
-            <button className="btn btn-primary btn-lg" onClick={() => setShowCycleSetup(true)}>
-              ✨ {t('dashboard.createCycle')}
-            </button>
-            <button className="btn btn-secondary btn-lg" onClick={() => navigate('/settings')}>
-              📥 {t('dashboard.importData')}
-            </button>
-          </div>
         </div>
-        <div className="card">
-          <div className="card-body" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
-            <strong>💡 {t('dashboard.instructions')}</strong>
-            <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-              {[1, 2, 3, 4, 5, 6, 7].map((number) => (
-                <li key={number}>{t(`dashboard.instruction${number}` as TranslationKey)}</li>
-              ))}
-            </ul>
-          </div>
+        <div className="stack-10">
+          {(['home.principle1', 'home.principle2', 'home.principle3'] as TranslationKey[]).map((key, i) => (
+            <div className="principle" key={key}>
+              <span className="principle-n">{i + 1}</span>
+              <span style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--sc-ink-2)' }}>{t(key)}</span>
+            </div>
+          ))}
         </div>
+        <button className="btn btn-primary btn-lg" onClick={() => navigate('/cycle-setup')}>
+          <Icon name="plus" size={18} />
+          {t('dashboard.createCycle')}
+        </button>
+        <button className="btn btn-ghost" onClick={() => navigate('/settings')}>
+          {t('dashboard.importData')}
+        </button>
       </div>
     );
   }
 
-  // --- 有学习周期 ---
+  // --- 有周期 ---
   const activeGoals = goals.filter((g) => g.isActive);
   const cycleProgress = calculateCycleProgress(activeGoals);
+  const expected = calculateExpectedProgress(cycle, today);
   const isTodayStudyDay = isStudyDay(cycle, today);
   const dayIdx = getDayIndex(cycle, today);
   const todayOverride = overrides.find((o) => o.date === today);
   const isClosed = todayPlan?.status === 'closed';
   const healthGateEnabled = cycle.healthGateEnabled;
-  const healthRequired = healthGateEnabled && !healthPassed;
+  const healthRequired = healthGateEnabled && !healthPassed && isTodayStudyDay && !todayOverride && !isClosed;
+  const streak = getSystemRunningStreak(cycle, allPlans, overrides, today);
+  const week = getRecentDays(cycle, allPlans, overrides, today);
+  const rhythm = detectRhythmStatus(cycleProgress, expected, countRecentLowCompletion(recentCheckIns));
+  const planStarted = !!todayPlan && todayPlan.status !== 'notStarted';
+  const mainGoalNames = (todayPlan?.mainGoalIds ?? [])
+    .map((id) => goals.find((g) => g.id === id)?.name)
+    .filter(Boolean) as string[];
 
-  // 最近统计
-  const recentLowDays = countRecentLowCompletion(recentCheckIns);
-  const unclosedDays = countUnclosedDays(allPlans, today);
+  const handleHealthPass = () => setHealthPassed(true);
 
-  // --- 健康前置 ---
-  const handleHealthPass = () => {
-    setHealthPassed(true);
-  };
-
-  // --- 申请当日特例 ---
   const handleDayException = () => {
     setHealthException(true);
     setHealthPassed(true);
@@ -118,229 +109,268 @@ export default function Dashboard() {
     }
   };
 
-  // --- 输入暗号 ---
   const handlePhraseSubmit = () => {
     const phrase = cycle.launchPhrase || t('cycle.defaultLaunchPhrase');
     if (phraseInput.trim() !== phrase) {
-      setPhraseError(t('dashboard.phraseError'));
+      setPhraseError(true);
       return;
     }
-    setPhraseError('');
+    setPhraseError(false);
 
-    // 检查是否今天已有计划
     const existing = allPlans.find((p) => p.date === today);
     if (existing) {
-      const resumed = existing.status === 'notStarted'
-        ? { ...existing, status: 'active' as const }
-        : existing;
+      const resumed = existing.status === 'notStarted' ? { ...existing, status: 'active' as const } : existing;
       if (resumed !== existing) savePlan(resumed);
       setTodayPlan(resumed);
       navigate('/today');
       return;
     }
 
-    // 生成计划
-    const generated = generateDailyPlan(cycle, goals, today, allPlans, recentCheckIns, overrides, healthPassed || !healthGateEnabled);
-    const plan = healthException
-      ? { ...generated, healthGateStatus: 'exception' as const }
-      : generated;
+    const generated = generateDailyPlan(
+      cycle, goals, today, allPlans, recentCheckIns, overrides, healthPassed || !healthGateEnabled,
+    );
+    const plan = healthException ? { ...generated, healthGateStatus: 'exception' as const } : generated;
     savePlan(plan);
     setTodayPlan(plan);
     setAllPlans((prev) => [...prev, plan]);
     navigate('/today');
   };
 
-  // --- 渲染今日状态 ---
-  const renderTodayStatus = () => {
-    if (isClosed) {
-      return (
-        <div className="alert alert-success">
-          ✅ {t('dashboard.closedMessage')}<br />
-          <button className="btn btn-secondary btn-sm" style={{ marginTop: '8px' }} onClick={() => navigate('/today')}>
-            {t('dashboard.viewFeedback')}
-          </button>
-        </div>
-      );
-    }
+  // 提醒条：只提醒，不指责
+  const warnings: string[] = [];
+  if (countRecentLowCompletion(recentCheckIns) >= 2) warnings.push(t('dashboard.lowCompletionWarning'));
+  if (countUnclosedDays(allPlans, today) >= 3) warnings.push(t('dashboard.unclosedWarning'));
+  if (activeGoals.length > 5) warnings.push(t('dashboard.tooManyGoalsWarning', { count: activeGoals.length }));
 
-    if (todayOverride) {
-      return (
-        <div className="alert alert-info">
-          📌 {t('dashboard.specialDay', {
-            mode: t(MODE_KEYS[todayOverride.mode]),
-            reason: todayOverride.reason,
-          })}
-        </div>
-      );
-    }
-
-    if (!isTodayStudyDay) {
-      return (
-        <div className="alert alert-info">
-          🌿 {t('dashboard.restMessage')}<br />
-          {t('dashboard.markSpecialHint')}
-        </div>
-      );
-    }
-
-    if (healthRequired) {
-      return (
-        <div className="card">
-          <div className="card-title">🏃 {t('dashboard.healthGate')}</div>
-          <div className="card-body" style={{ marginTop: '8px' }}>
-            <p>{cycle.healthGateText || t('dashboard.defaultHealthGate')}</p>
-            <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-              <button className="btn btn-success" onClick={handleHealthPass}>✅ {t('dashboard.healthDone')}</button>
-              <button className="btn btn-secondary" onClick={handleDayException}>🔓 {t('dashboard.healthException')}</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (todayPlan && todayPlan.status !== 'notStarted') {
-      return (
-        <div className="alert alert-success">
-          📋 {t('dashboard.planGenerated')}
-          <button className="btn btn-primary btn-sm" style={{ marginLeft: '8px' }} onClick={() => navigate('/today')}>
-            {t('dashboard.enterPlan')}
-          </button>
-        </div>
-      );
-    }
-
-    // 等待输入暗号
-    return (
-      <div className="card">
-        <div className="card-title">🔑 {t('dashboard.launchPhrase')}</div>
-        <div className="card-body" style={{ marginTop: '8px' }}>
-          <p style={{ marginBottom: '12px', color: 'var(--color-text-muted)' }}>
-            {t('dashboard.launchHint')}
-          </p>
-          <div className="phrase-input-wrap">
-            <input
-              className="form-input"
-              type="text"
-              placeholder={t('dashboard.launchPlaceholder')}
-              value={phraseInput}
-              onChange={(e) => { setPhraseInput(e.target.value); setPhraseError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && handlePhraseSubmit()}
-            />
-            <button className="btn btn-primary" onClick={handlePhraseSubmit}>{t('dashboard.launch')}</button>
-          </div>
-          {phraseError && <p style={{ color: 'var(--color-danger)', fontSize: '0.85rem', marginTop: '8px' }}>{phraseError}</p>}
-        </div>
-      </div>
-    );
-  };
-
-  // --- 节奏概览 ---
-  const renderRhythmOverview = () => {
-    const recent7 = recentCheckIns.filter((c) => {
-      const d = new Date(c.date);
-      const t = new Date(today);
-      const diff = Math.floor((t.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-      return diff >= 0 && diff < 7;
-    });
-
-    return (
-      <div className="card">
-        <div className="card-title">📊 {t('dashboard.recentRhythm')}</div>
-        <div className="card-body" style={{ marginTop: '8px' }}>
-          {recent7.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)' }}>{t('common.none')}</p>
+  return (
+    <>
+      <div className="page-head">
+        <h1 className="h1">{cycle.name}</h1>
+        <div className="page-meta">
+          <span style={{ whiteSpace: 'nowrap' }}>{today}</span>
+          <span className="dot-sep">·</span>
+          <span>{t('dashboard.dayIndex', { count: dayIdx })}</span>
+          <span className="dot-sep">·</span>
+          {todayOverride ? (
+            <ModeChip mode={todayOverride.mode} />
           ) : (
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              {recent7.map((ci) => {
-                const rhythmColors: Record<string, string> = {
-                  ahead: 'var(--color-success)',
-                  stable: 'var(--color-primary)',
-                  slightlyBehind: 'var(--color-warning)',
-                  behind: '#d4a04a',
-                  slipping: 'var(--color-danger)',
-                };
-                return (
-                  <div
-                    key={ci.id}
-                    title={`${ci.date}: ${ci.todayCompletionPercent}% - ${t(RHYTHM_KEYS[ci.rhythmStatus])}`}
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '6px',
-                      background: rhythmColors[ci.rhythmStatus] || '#ccc',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontSize: '0.7rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    {ci.todayCompletionPercent}%
-                  </div>
-                );
-              })}
-            </div>
+            <span className={`chip ${isTodayStudyDay ? 'chip-primary' : 'chip-rest'}`}>
+              {isTodayStudyDay ? t('dashboard.studyDay') : t('dashboard.restDay')}
+            </span>
           )}
         </div>
       </div>
-    );
-  };
 
-  // --- 警告 ---
-  const renderWarnings = () => {
-    const warnings: string[] = [];
-    if (recentLowDays >= 2) {
-      warnings.push(t('dashboard.lowCompletionWarning'));
-    }
-    if (unclosedDays >= 3) {
-      warnings.push(t('dashboard.unclosedWarning'));
-    }
-    if (activeGoals.length > 5) {
-      warnings.push(t('dashboard.tooManyGoalsWarning', { count: activeGoals.length }));
-    }
+      {/* 系统连续运行 + 最近 7 天节奏 —— 让人有安全感的那块 */}
+      <div className="card">
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <div className="col" style={{ gap: 3 }}>
+            <div className="row" style={{ gap: 7, fontSize: 12, fontWeight: 500, color: 'var(--sc-ink-3)' }}>
+              <Icon name="pulse" size={15} />
+              {t('shell.systemRunning')}
+            </div>
+            <div className="row" style={{ alignItems: 'baseline', gap: 7 }}>
+              <span className="num" style={{ fontSize: 38, color: 'var(--sc-primary)' }}>{streak}</span>
+              <span style={{ fontSize: 13, color: 'var(--sc-ink-2)' }}>{t('home.daysUnit')}</span>
+            </div>
+          </div>
+          <span className="spacer" />
+          <div className="note" style={{ textAlign: 'right', maxWidth: 150 }}>{t('shell.streakNote')}</div>
+        </div>
 
-    if (warnings.length === 0) return null;
-    return (
-      <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        {warnings.map((w, i) => (
-          <div key={i} className="alert alert-warning">{w}</div>
-        ))}
+        <div className="week-row">
+          {week.map((d) => {
+            const height = d.completion === null ? 100 : Math.max(6, d.completion);
+            const color = d.completion === null
+              ? 'var(--sc-rest)'
+              : d.completion > 0 ? 'var(--sc-primary)' : 'var(--sc-line)';
+            return (
+              <div className="week-col" key={d.date}>
+                <div className="week-slot" title={`${d.date} · ${d.completion === null ? t('dashboard.restDay') : `${d.completion}%`}`}>
+                  <div className="week-bar" style={{ height: `${height}%`, background: color }} />
+                </div>
+                <span style={{ fontSize: 9.5, color: 'var(--sc-ink-3)' }}>{d.weekdayLabel}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="legend">
+          <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--sc-primary)' }} />{t('home.legendDone')}</span>
+          <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--sc-rest)' }} />{t('home.legendRest')}</span>
+          <span className="legend-item"><span className="legend-swatch" style={{ background: 'var(--sc-line)' }} />{t('home.legendNone')}</span>
+        </div>
       </div>
-    );
-  };
 
-  return (
-    <div>
-      <h1 className="page-title">📚 {cycle.name}</h1>
-      <p className="page-subtitle">
-        {today} · {t('dashboard.dayIndex', { count: dayIdx })} · {isTodayStudyDay ? `📖 ${t('dashboard.studyDay')}` : `🌿 ${t('dashboard.restDay')}`} · {t('dashboard.cycleProgress', { percent: cycleProgress })}
-      </p>
+      {warnings.map((w) => (
+        <div className="notice" key={w} style={{ background: 'var(--sc-health-soft)' }}>
+          <Icon name="spark" size={18} style={{ marginTop: 2, color: 'var(--sc-health)' }} />
+          <div className="notice-body pretty">{w}</div>
+        </div>
+      ))}
 
-      {renderWarnings()}
-      {renderTodayStatus()}
-
-      <div className="grid-2">
-        <div className="card stat-card">
-          <div className="stat-value">{cycleProgress}%</div>
-          <div className="stat-label">{t('dashboard.totalProgress')}</div>
-          <div className="progress-bar" style={{ marginTop: '8px' }}>
-            <div className="progress-bar-fill progress-fill-primary" style={{ width: `${cycleProgress}%` }} />
+      {/* 收工后 */}
+      {isClosed && (
+        <div className="notice" style={{ background: 'var(--sc-primary-soft)' }}>
+          <Icon name="check" size={18} style={{ marginTop: 2, color: 'var(--sc-primary)' }} />
+          <div className="notice-body pretty">
+            {t('dashboard.closedMessage')}
+            <button className="btn btn-outline btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => navigate('/today')}>
+              {t('dashboard.viewFeedback')}
+            </button>
           </div>
         </div>
-        <div className="card stat-card">
-          <div className="stat-value">{activeGoals.length}</div>
-          <div className="stat-label">{t('dashboard.activeGoalCount')}</div>
+      )}
+
+      {/* 特殊日 / 休息日 */}
+      {!isClosed && todayOverride && (
+        <div className="notice" style={{ background: 'var(--sc-rest-soft)' }}>
+          <Icon name="rest" size={18} style={{ marginTop: 2, color: 'var(--sc-rest)' }} />
+          <div className="notice-body pretty">
+            {t('dashboard.specialDay', { mode: t(MODE_KEYS[todayOverride.mode]), reason: todayOverride.reason })}
+          </div>
+        </div>
+      )}
+      {!isClosed && !todayOverride && !isTodayStudyDay && (
+        <div className="notice" style={{ background: 'var(--sc-rest-soft)' }}>
+          <Icon name="rest" size={18} style={{ marginTop: 2, color: 'var(--sc-rest)' }} />
+          <div className="notice-body pretty">{t('dashboard.restMessage')}</div>
+        </div>
+      )}
+
+      {/* 第一步：健康前置 */}
+      {healthRequired && (
+        <div className="step-health">
+          <div className="step-label" style={{ color: 'var(--sc-health)' }}>
+            <Icon name="health" size={16} />
+            {t('home.step1')}
+          </div>
+          <div className="h3">{t('home.healthTitle')}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--sc-ink-2)' }}>
+            {cycle.healthGateText || t('home.healthBody')}
+          </div>
+          <div className="row-wrap" style={{ gap: 8, marginTop: 2 }}>
+            <button
+              className="btn"
+              style={{ flex: '1 1 auto', background: 'var(--sc-health)', color: '#fff', fontWeight: 500 }}
+              onClick={handleHealthPass}
+            >
+              <Icon name="check" size={17} />
+              {t('home.healthDone')}
+            </button>
+            <button
+              className="btn"
+              style={{ borderColor: 'var(--sc-health)', color: 'var(--sc-health)', background: 'transparent', fontSize: 13 }}
+              onClick={handleDayException}
+            >
+              {t('home.healthSkip')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 第二步：亲手启动 —— 这是产品最有想法的一刻，给它整屏最强的存在感 */}
+      {!isClosed && !todayOverride && isTodayStudyDay && !healthRequired && !planStarted && (
+        <div className="ritual">
+          <div className="step-label" style={{ color: 'var(--sc-primary)' }}>
+            <Icon name="key" size={16} />
+            {t('home.step2')}
+          </div>
+          <div className="ritual-title pretty">{t('home.ritualTitle')}</div>
+          <div className="pretty" style={{ fontSize: 13, lineHeight: 1.75, color: 'var(--sc-ink-2)' }}>
+            {t('home.ritualBody')}
+          </div>
+          <input
+            className="input input-ritual"
+            type="text"
+            placeholder={t('dashboard.launchPlaceholder')}
+            value={phraseInput}
+            onChange={(e) => { setPhraseInput(e.target.value); setPhraseError(false); }}
+            onKeyDown={(e) => e.key === 'Enter' && handlePhraseSubmit()}
+            aria-label={t('dashboard.launchPhrase')}
+          />
+          <button className="btn btn-primary btn-hero btn-block" onClick={handlePhraseSubmit}>
+            <Icon name="spark" size={18} />
+            {t('home.startBtn')}
+          </button>
+          <div className="note">
+            {phraseError
+              ? t('home.codeHintError', { code: cycle.launchPhrase || t('cycle.defaultLaunchPhrase') })
+              : t('home.codeHintIdle')}
+          </div>
+        </div>
+      )}
+
+      {/* 已启动 */}
+      {!isClosed && planStarted && (
+        <div className="started">
+          <div className="row" style={{ gap: 8, fontSize: 12, fontWeight: 500, opacity: .9 }}>
+            <Icon name="check" size={16} />
+            {t('dashboard.planGenerated')}
+          </div>
+          <div className="serif" style={{ fontWeight: 600, fontSize: 20, lineHeight: 1.4 }}>{t('home.startedTitle')}</div>
+          {mainGoalNames.length > 0 && (
+            <div className="started-inset">
+              <div style={{ fontSize: 11.5, fontWeight: 500, opacity: .85 }}>{t('home.mainGoal')}</div>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>{mainGoalNames.join(' · ')}</div>
+            </div>
+          )}
+          <button className="btn btn-invert btn-lg btn-block" onClick={() => navigate('/today')}>
+            {t('home.enterToday')}
+            <Icon name="chev" size={17} />
+          </button>
+        </div>
+      )}
+
+      {/* 进度 + 目标 */}
+      <div className="grid-2">
+        <div className="card card-flat">
+          <div className="card-label">{t('dashboard.totalProgress')}</div>
+          <div className="row" style={{ alignItems: 'baseline' }}>
+            <span className="num" style={{ fontSize: 32, color: 'var(--sc-ink)' }}>{cycleProgress}%</span>
+            <span className="spacer" />
+            <span className="note">{t('home.expected')} {expected}%</span>
+          </div>
+          <div className="bar">
+            <div className="bar-fill" style={{ width: `${Math.min(100, cycleProgress)}%` }} />
+            <div className="bar-mark" style={{ left: `${Math.min(100, expected)}%` }} />
+          </div>
+          <RhythmChip status={rhythm} />
+        </div>
+
+        <div className="card card-flat">
+          <div className="card-label">{t('dashboard.activeGoalCount')}</div>
+          <div className="row" style={{ alignItems: 'baseline', gap: 6 }}>
+            <span className="num" style={{ fontSize: 32, color: 'var(--sc-ink)' }}>{activeGoals.length}</span>
+            <span style={{ fontSize: 12, color: 'var(--sc-ink-3)' }}>/ {goals.length}</span>
+          </div>
+          <div className="stack-8">
+            {activeGoals.slice(0, 4).map((g, i) => (
+              <div className="row" style={{ gap: 9 }} key={g.id}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: GOAL_DOTS[i % GOAL_DOTS.length] }} />
+                <span style={{ flex: 1, fontSize: 12.5, color: 'var(--sc-ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {g.name}
+                </span>
+                <span className="tnum" style={{ fontSize: 11.5, color: 'var(--sc-ink-3)' }}>{calculateGoalProgress(g)}%</span>
+              </div>
+            ))}
+            {activeGoals.length === 0 && <span className="note">{t('common.none')}</span>}
+          </div>
         </div>
       </div>
 
-      {renderRhythmOverview()}
-
-      <div style={{ marginTop: 'var(--spacing-lg)' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>
-          {t('dashboard.markToday')}
-        </button>
-      </div>
-    </div>
+      {/* 休息提示：把「今天可以不学」摆到台面上 */}
+      {!isClosed && !todayOverride && isTodayStudyDay && (
+        <div className="notice" style={{ background: 'var(--sc-rest-soft)' }}>
+          <Icon name="rest" size={18} style={{ marginTop: 1, color: 'var(--sc-rest)' }} />
+          <div className="notice-body pretty">
+            {t('home.restNudge')}
+            <button className="btn btn-caution btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => navigate('/settings')}>
+              {t('dashboard.markToday')}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

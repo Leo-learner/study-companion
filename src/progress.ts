@@ -1,7 +1,7 @@
 // ============================================================
 // 进度计算逻辑
 // ============================================================
-import { StudyCycle, StudyGoal, DailyPlan, TaskItem, RhythmStatus, CheckIn } from './types';
+import { StudyCycle, StudyGoal, DailyPlan, TaskItem, RhythmStatus, CheckIn, DayOverride } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -215,6 +215,76 @@ export function getStreakDays(plans: DailyPlan[], date: string): number {
     checkDate.setUTCDate(checkDate.getUTCDate() - 1);
   }
   return streak;
+}
+
+/**
+ * 系统连续运行天数。
+ *
+ * 与 getStreakDays 的区别：休息日、放假日、阻断日都算「系统在运行」，
+ * 因为产品理念是「允许失败，不允许脱轨」——断线只发生在学习日什么都没做。
+ * 今天尚未收工不算断线，从昨天往前数。
+ */
+export function getSystemRunningStreak(
+  cycle: StudyCycle,
+  plans: DailyPlan[],
+  overrides: DayOverride[],
+  date: string
+): number {
+  const closed = new Set(plans.filter((p) => p.status === 'closed').map((p) => p.date));
+  const overridden = new Set(overrides.map((o) => o.date));
+  const start = parseDateOnly(cycle.startDate);
+
+  const ran = (ds: string) =>
+    closed.has(ds) || overridden.has(ds) || !isStudyDay(cycle, ds);
+
+  const cursor = parseDateOnly(date);
+  // 今天还没收工不算断线——从昨天开始数。
+  if (!ran(formatDateOnly(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
+
+  let streak = 0;
+  while (cursor.getTime() >= start.getTime() && ran(formatDateOnly(cursor))) {
+    streak++;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return streak;
+}
+
+/** 最近 n 天（含今天）的运行情况，用于首页节奏条。 */
+export interface RecentDay {
+  date: string;
+  weekdayLabel: string;
+  isStudyDay: boolean;
+  /** 0–100；休息日为 null（不该显示成 0%） */
+  completion: number | null;
+  ran: boolean;
+}
+
+export function getRecentDays(
+  cycle: StudyCycle,
+  plans: DailyPlan[],
+  overrides: DayOverride[],
+  date: string,
+  count: number = 7
+): RecentDay[] {
+  const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+  const overridden = new Map(overrides.map((o) => [o.date, o]));
+  const out: RecentDay[] = [];
+
+  for (let i = count - 1; i >= 0; i--) {
+    const d = parseDateOnly(date);
+    d.setUTCDate(d.getUTCDate() - i);
+    const ds = formatDateOnly(d);
+    const plan = plans.find((p) => p.date === ds);
+    const isRest = !isStudyDay(cycle, ds) || overridden.has(ds);
+    out.push({
+      date: ds,
+      weekdayLabel: weekdayLabels[d.getUTCDay()],
+      isStudyDay: !isRest,
+      completion: isRest ? null : plan && plan.status === 'closed' ? calculateTodayCompletion(plan) : 0,
+      ran: isRest || plan?.status === 'closed',
+    });
+  }
+  return out;
 }
 
 /**

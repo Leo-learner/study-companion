@@ -1,86 +1,80 @@
 import React, { useRef, useState } from 'react';
 import {
-  clearAllData,
-  deleteOverride,
-  exportDataJSON,
-  getActiveCycle,
-  getOverrides,
-  importDataJSON,
-  saveCycle,
-  saveOverride,
-  type ImportResult,
+  clearAllData, deleteOverride, exportDataJSON, getActiveCycle, getOverrides,
+  importDataJSON, saveCycle, saveOverride, type ImportResult,
 } from '../storage';
 import { DayOverride, generateId, todayStr } from '../types';
 import { useI18n } from '../i18n/I18nProvider';
+import { useTheme } from '../theme';
+import Icon from '../components/Icon';
+import { MODE_CLASS, MODE_KEYS } from '../components/StatusChips';
 import CycleSetup from './CycleSetup';
+import { TranslationKey } from '../i18n/messages';
+
+const SPECIAL_MODES: DayOverride['mode'][] = ['rest', 'holiday', 'exam', 'blocked'];
+const MANUAL_KEYS: TranslationKey[] = [
+  'settingsNew.manual1', 'settingsNew.manual2', 'settingsNew.manual3',
+  'settingsNew.manual4', 'settingsNew.manual5', 'settingsNew.manual6',
+];
+
+function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button type="button" className={`switch${on ? ' on' : ''}`} role="switch" aria-checked={on}
+            aria-label={label} onClick={onToggle}>
+      <span className="switch-knob" />
+    </button>
+  );
+}
 
 export default function Settings() {
-  const { t } = useI18n();
+  const { t, language, setLanguage } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const cycle = getActiveCycle();
   const [showCycleEdit, setShowCycleEdit] = useState(false);
-  const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
-  const [showMarkDay, setShowMarkDay] = useState(false);
-  const [markMode, setMarkMode] = useState<'rest' | 'holiday' | 'exam' | 'blocked'>('rest');
-  const [markReason, setMarkReason] = useState('');
+  const [savedHint, setSavedHint] = useState('');
+  const [clearArmed, setClearArmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const today = todayStr();
 
   const [phrase, setPhrase] = useState(cycle?.launchPhrase || t('cycle.defaultLaunchPhrase'));
   const [healthEnabled, setHealthEnabled] = useState(cycle?.healthGateEnabled ?? false);
-  const [healthText, setHealthText] = useState(cycle?.healthGateText || '');
   const [hideAmounts, setHideAmounts] = useState(cycle?.hideRawAmountsInFeedback ?? true);
   const [maxMain, setMaxMain] = useState(cycle?.maxMainGoalsPerDay || 1);
+  const [special, setSpecial] = useState<DayOverride['mode'] | ''>(
+    () => (cycle ? getOverrides(cycle.id).find((o) => o.date === today)?.mode ?? '' : ''),
+  );
 
-  const handleSavePhrase = () => {
+  /** 设置项即时生效并落库，不再用 alert 打断。 */
+  const patchCycle = (patch: Partial<NonNullable<typeof cycle>>, hint: TranslationKey) => {
     if (!cycle) return;
-    saveCycle({ ...cycle, launchPhrase: phrase.trim(), updatedAt: new Date().toISOString() });
-    alert(t('settings.phraseUpdated'));
-  };
-
-  const handleSaveHealth = () => {
-    if (!cycle) return;
-    saveCycle({ ...cycle, healthGateEnabled: healthEnabled, healthGateText: healthText, updatedAt: new Date().toISOString() });
-    alert(t('settings.healthUpdated'));
-  };
-
-  const handleSaveHide = () => {
-    if (!cycle) return;
-    saveCycle({ ...cycle, hideRawAmountsInFeedback: hideAmounts, updatedAt: new Date().toISOString() });
-    alert(t('settings.feedbackUpdated'));
-  };
-
-  const handleSaveMaxMain = () => {
-    if (!cycle) return;
-    saveCycle({ ...cycle, maxMainGoalsPerDay: maxMain, updatedAt: new Date().toISOString() });
-    alert(t('settings.mainGoalsUpdated'));
+    saveCycle({ ...cycle, ...patch, updatedAt: new Date().toISOString() });
+    setSavedHint(t(hint));
+    window.setTimeout(() => setSavedHint(''), 2200);
   };
 
   const handleCycleEdited = () => {
-    const updatedCycle = getActiveCycle();
-    if (updatedCycle) {
-      setPhrase(updatedCycle.launchPhrase || t('cycle.defaultLaunchPhrase'));
-      setHealthEnabled(updatedCycle.healthGateEnabled);
-      setHealthText(updatedCycle.healthGateText);
-      setHideAmounts(updatedCycle.hideRawAmountsInFeedback);
-      setMaxMain(updatedCycle.maxMainGoalsPerDay);
+    const updated = getActiveCycle();
+    if (updated) {
+      setPhrase(updated.launchPhrase || t('cycle.defaultLaunchPhrase'));
+      setHealthEnabled(updated.healthGateEnabled);
+      setHideAmounts(updated.hideRawAmountsInFeedback);
+      setMaxMain(updated.maxMainGoalsPerDay);
     }
     setShowCycleEdit(false);
   };
 
-  const handleMarkDay = () => {
+  const toggleSpecial = (mode: DayOverride['mode']) => {
     if (!cycle) return;
-    const existing = getOverrides(cycle.id).find((override) => override.date === today);
+    const existing = getOverrides(cycle.id).find((o) => o.date === today);
     if (existing) deleteOverride(existing.id);
-    const override: DayOverride = {
-      id: generateId(), cycleId: cycle.id, date: today, mode: markMode,
-      reason: markReason, createdAt: new Date().toISOString(),
-    };
-    saveOverride(override);
-    setShowMarkDay(false);
-    setMarkReason('');
-    alert(t('settings.markedToday'));
+    if (special === mode) { setSpecial(''); return; }
+    saveOverride({
+      id: generateId(), cycleId: cycle.id, date: today, mode,
+      reason: t(MODE_KEYS[mode]), createdAt: new Date().toISOString(),
+    });
+    setSpecial(mode);
   };
 
   const handleExport = () => {
@@ -97,7 +91,6 @@ export default function Settings() {
     if (result.success) {
       setImportSuccess(t('settings.importSuccess'));
       setImportError('');
-      setImportText('');
       return;
     }
     const key = result.errorCode === 'invalidFormat'
@@ -109,125 +102,199 @@ export default function Settings() {
     setImportSuccess('');
   };
 
-  const handleImport = () => applyImportResult(importDataJSON(importText));
-
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (loadEvent) => applyImportResult(importDataJSON(String(loadEvent.target?.result ?? '')));
+    reader.onload = (e) => applyImportResult(importDataJSON(String(e.target?.result ?? '')));
     reader.readAsText(file);
   };
 
+  // 清空数据是不可逆的：陶土色 + 两段确认，仍然不用红色
   const handleClear = () => {
-    if (confirm(t('settings.clearConfirm1')) && confirm(t('settings.clearConfirm2'))) {
-      clearAllData();
-      window.location.reload();
-    }
+    if (!clearArmed) { setClearArmed(true); return; }
+    clearAllData();
+    window.location.reload();
   };
 
   if (showCycleEdit) return <CycleSetup onCreated={handleCycleEdited} editMode />;
 
-  const coreKeys = ['core1', 'core2', 'core3', 'core4', 'core5', 'core6', 'core7', 'core8', 'core9'] as const;
-  const flowKeys = ['flow1', 'flow2', 'flow3', 'flow4', 'flow5'] as const;
-
   return (
-    <div>
-      <h1 className="page-title">⚙️ {t('settings.title')}</h1>
-      <p className="page-subtitle">{t('settings.subtitle')}</p>
+    <>
+      <h1 className="h1">{t('settings.title')}</h1>
 
-      <div className="card settings-section">
-        <h3>🔑 {t('settings.launchSection')}</h3>
-        <div className="form-group">
-          <label className="form-label">{t('settings.currentPhrase')}</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input className="form-input" value={phrase} onChange={(event) => setPhrase(event.target.value)} />
-            <button className="btn btn-primary" onClick={handleSavePhrase}>{t('common.save')}</button>
+      {savedHint && (
+        <div className="notice" style={{ background: 'var(--sc-primary-soft)' }}>
+          <Icon name="check" size={17} style={{ marginTop: 2, color: 'var(--sc-primary)' }} />
+          <div className="notice-body">{savedHint}</div>
+        </div>
+      )}
+
+      <div className="settings-group">
+        {/* 启动暗号 */}
+        <div className="setting-row setting-stack">
+          <div className="card-title">
+            <Icon name="key" size={16} style={{ color: 'var(--sc-primary)' }} />
+            {t('settings.launchSection')}
+          </div>
+          <input
+            className="input input-ritual"
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            onBlur={() => phrase.trim() && patchCycle({ launchPhrase: phrase.trim() }, 'settings.phraseUpdated')}
+            aria-label={t('settings.currentPhrase')}
+            disabled={!cycle}
+          />
+          <div className="note">{t('settingsNew.codewordHint')}</div>
+        </div>
+
+        {/* 健康前置 */}
+        <div className="setting-row">
+          <div className="col" style={{ flex: 1, gap: 5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t('settingsNew.healthToggle')}</div>
+            <div className="note">{t('settingsNew.healthToggleHint')}</div>
+          </div>
+          <Switch
+            on={healthEnabled}
+            label={t('settingsNew.healthToggle')}
+            onToggle={() => {
+              const next = !healthEnabled;
+              setHealthEnabled(next);
+              patchCycle({ healthGateEnabled: next }, 'settings.healthUpdated');
+            }}
+          />
+        </div>
+
+        {/* 只显示百分比 */}
+        <div className="setting-row">
+          <div className="col" style={{ flex: 1, gap: 5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t('settingsNew.rawToggle')}</div>
+            <div className="note">{t('settingsNew.rawToggleHint')}</div>
+          </div>
+          <Switch
+            on={hideAmounts}
+            label={t('settingsNew.rawToggle')}
+            onToggle={() => {
+              const next = !hideAmounts;
+              setHideAmounts(next);
+              patchCycle({ hideRawAmountsInFeedback: next }, 'settings.feedbackUpdated');
+            }}
+          />
+        </div>
+
+        {/* 深色模式 */}
+        <div className="setting-row">
+          <div className="col" style={{ flex: 1, gap: 5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t('settingsNew.darkToggle')}</div>
+            <div className="note">{t('settingsNew.darkToggleHint')}</div>
+          </div>
+          <Switch on={theme === 'dark'} label={t('settingsNew.darkToggle')} onToggle={toggleTheme} />
+        </div>
+
+        {/* 每日最多主线目标 */}
+        <div className="setting-row">
+          <div className="col" style={{ flex: 1, gap: 5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t('settingsNew.maxMain')}</div>
+            <div className="note">{t('settingsNew.maxMainHint')}</div>
+          </div>
+          <div className="row" style={{ gap: 8, flex: 'none' }}>
+            <button className="btn btn-quiet btn-sm" style={{ width: 40, padding: 0 }} aria-label={t('common.decrease')}
+                    onClick={() => { const v = Math.max(1, maxMain - 1); setMaxMain(v); patchCycle({ maxMainGoalsPerDay: v }, 'settings.mainGoalsUpdated'); }}>
+              <Icon name="minus" size={16} />
+            </button>
+            <span style={{ minWidth: 22, textAlign: 'center', fontSize: 16, fontWeight: 500 }}>{maxMain}</span>
+            <button className="btn btn-quiet btn-sm" style={{ width: 40, padding: 0 }} aria-label={t('common.increase')}
+                    onClick={() => { const v = Math.min(3, maxMain + 1); setMaxMain(v); patchCycle({ maxMainGoalsPerDay: v }, 'settings.mainGoalsUpdated'); }}>
+              <Icon name="plus" size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* 语言 */}
+        <div className="setting-row">
+          <div className="col" style={{ flex: 1, gap: 5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t('settings.language')}</div>
+            <div className="note">{t('settingsNew.langHint')}</div>
+          </div>
+          <div className="seg">
+            <button className={`seg-btn${language === 'zh' ? ' on' : ''}`} onClick={() => setLanguage('zh')}>中文</button>
+            <button className={`seg-btn${language === 'en' ? ' on' : ''}`} onClick={() => setLanguage('en')}>EN</button>
           </div>
         </div>
       </div>
 
-      <div className="card settings-section">
-        <h3>🏃 {t('settings.healthSection')}</h3>
-        <div className="form-group"><label className="form-checkbox">
-          <input type="checkbox" checked={healthEnabled} onChange={(event) => setHealthEnabled(event.target.checked)} />
-          {t('cycle.enableHealth')}
-        </label></div>
-        {healthEnabled && <div className="form-group"><input className="form-input" value={healthText} onChange={(event) => setHealthText(event.target.value)} placeholder={t('settings.healthPlaceholder')} /></div>}
-        <button className="btn btn-primary" onClick={handleSaveHealth}>{t('common.save')}</button>
-      </div>
-
-      <div className="card settings-section">
-        <h3>📊 {t('settings.feedbackSection')}</h3>
-        <div className="form-group"><label className="form-checkbox">
-          <input type="checkbox" checked={hideAmounts} onChange={(event) => setHideAmounts(event.target.checked)} />
-          {t('cycle.hideAmounts')}
-        </label></div>
-        <button className="btn btn-primary" onClick={handleSaveHide}>{t('common.save')}</button>
-      </div>
-
-      <div className="card settings-section">
-        <h3>🎯 {t('settings.mainGoalsSection')}</h3>
-        <div className="form-group">
-          <label className="form-label">{t('cycle.maxMainGoals')}</label>
-          <input className="form-input" type="number" min={1} max={5} value={maxMain} onChange={(event) => setMaxMain(Number(event.target.value))} style={{ maxWidth: '200px' }} />
-        </div>
-        <button className="btn btn-primary" onClick={handleSaveMaxMain}>{t('common.save')}</button>
-      </div>
-
-      <div className="card settings-section">
-        <h3>📅 {t('settings.markSpecialSection')}</h3>
-        {showMarkDay ? <div>
-          <div className="form-group">
-            <label className="form-label">{t('settings.type')}</label>
-            <select className="form-select" value={markMode} onChange={(event) => setMarkMode(event.target.value as typeof markMode)}>
-              {(['rest', 'holiday', 'exam', 'blocked'] as const).map((mode) => <option key={mode} value={mode}>{t(`plan.mode.${mode}`)}</option>)}
-            </select>
+      {/* 把今天标成特殊日 */}
+      {cycle && (
+        <div className="card card-flat">
+          <div className="card-title">
+            <Icon name="rest" size={16} style={{ color: 'var(--sc-rest)' }} />
+            {t('dashboard.markToday')}
           </div>
-          <div className="form-group">
-            <label className="form-label">{t('settings.reason')}</label>
-            <input className="form-input" value={markReason} onChange={(event) => setMarkReason(event.target.value)} placeholder={t('settings.reasonPlaceholder')} />
+          <div className="row-wrap" style={{ gap: 8 }}>
+            {SPECIAL_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={special === mode}
+                className={`btn btn-sm chip ${MODE_CLASS[mode]}`}
+                style={special === mode
+                  ? { background: 'var(--sc-rest)', color: '#fff', border: 'none', borderRadius: 'var(--sc-pill)' }
+                  : { border: 'none', borderRadius: 'var(--sc-pill)' }}
+                onClick={() => toggleSpecial(mode)}
+              >
+                {t(MODE_KEYS[mode])}
+              </button>
+            ))}
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-primary" onClick={handleMarkDay}>{t('settings.confirmMark')}</button>
-            <button className="btn btn-secondary" onClick={() => setShowMarkDay(false)}>{t('common.cancel')}</button>
+          <div className="note">
+            {special ? t('settingsNew.specialNoteSet') : t('settingsNew.specialNoteIdle')}
           </div>
-        </div> : <button className="btn btn-secondary" onClick={() => setShowMarkDay(true)}>📅 {t('settings.markToday')}</button>}
+        </div>
+      )}
+
+      {/* 周期设置 */}
+      {cycle && (
+        <button className="btn btn-outline" style={{ alignSelf: 'flex-start' }} onClick={() => setShowCycleEdit(true)}>
+          <Icon name="plan" size={17} />
+          {t('settings.cycleSection')}
+        </button>
+      )}
+
+      {/* 数据 */}
+      <div className="card card-flat">
+        <div className="card-title">
+          <Icon name="data" size={16} style={{ color: 'var(--sc-primary)' }} />
+          {t('settingsNew.dataTitle')}
+        </div>
+        <div className="row-wrap" style={{ gap: 9 }}>
+          <button className="btn btn-soft" onClick={handleExport}>{t('settings.export')}</button>
+          <button className="btn btn-quiet" onClick={() => fileInputRef.current?.click()}>{t('settings.importFile')}</button>
+          <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleFileImport} />
+          <span className="spacer" />
+          <button className="btn btn-caution" onClick={handleClear} onBlur={() => setClearArmed(false)}>
+            {clearArmed ? t('common.confirmDelete') : t('settings.clear')}
+          </button>
+        </div>
+        {importSuccess && <div className="note" style={{ color: 'var(--sc-primary)' }}>{importSuccess}</div>}
+        {importError && <div className="note" style={{ color: 'var(--sc-rest)' }}>{importError}</div>}
+        <div className="note">{t('settingsNew.dataHint')}</div>
       </div>
 
-      <div className="card settings-section">
-        <h3>📦 {t('settings.cycleSection')}</h3>
-        <button className="btn btn-secondary" onClick={() => setShowCycleEdit(true)}>⚙️ {t('settings.editCycle')}</button>
-      </div>
-
-      <div className="card settings-section">
-        <h3>💾 {t('settings.dataSection')}</h3>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          <button className="btn btn-primary" onClick={handleExport}>📥 {t('settings.export')}</button>
-          <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}>📤 {t('settings.importFile')}</button>
-          <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFileImport} />
+      {/* 使用说明 */}
+      <div className="card card-quiet">
+        <div className="card-title">
+          <Icon name="book" size={16} style={{ color: 'var(--sc-ink-3)' }} />
+          {t('settingsNew.manual')}
         </div>
-        <div className="form-group">
-          <label className="form-label">{t('settings.manualImport')}</label>
-          <textarea className="form-textarea" value={importText} onChange={(event) => setImportText(event.target.value)} placeholder={t('settings.jsonPlaceholder')} rows={4} />
-          {importError && <p className="form-hint" style={{ color: 'var(--color-danger)' }}>{importError}</p>}
-          {importSuccess && <p className="form-hint" style={{ color: 'var(--color-success)' }}>{importSuccess}</p>}
-          <button className="btn btn-primary btn-sm" onClick={handleImport} style={{ marginTop: '8px' }} disabled={!importText.trim()}>{t('settings.import')}</button>
-        </div>
-        <hr className="divider" />
-        <button className="btn btn-danger" onClick={handleClear}>🗑 {t('settings.clear')}</button>
-        <p className="form-hint">{t('settings.clearHint')}</p>
-      </div>
-
-      <div className="card settings-section">
-        <h3>📖 {t('settings.helpSection')}</h3>
-        <div className="card-body" style={{ fontSize: '0.9rem', lineHeight: 1.8 }}>
-          <p><strong>{t('settings.coreIdea')}</strong></p>
-          <ul style={{ paddingLeft: '20px' }}>{coreKeys.map((key) => <li key={key}>{t(`settings.${key}`)}</li>)}</ul>
-          <p style={{ marginTop: '12px' }}><strong>{t('settings.dailyFlow')}</strong></p>
-          <ol style={{ paddingLeft: '20px' }}>{flowKeys.map((key) => <li key={key}>{t(`settings.${key}`)}</li>)}</ol>
+        <div className="stack-8">
+          {MANUAL_KEYS.map((key) => (
+            <div className="row" key={key} style={{ alignItems: 'flex-start', gap: 10, fontSize: 12.5, lineHeight: 1.75, color: 'var(--sc-ink-2)' }}>
+              <span style={{ color: 'var(--sc-primary)', flex: 'none' }}>—</span>
+              <span>{t(key)}</span>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
+    </>
   );
 }
