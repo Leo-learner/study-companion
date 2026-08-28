@@ -31,7 +31,11 @@ export default function TodayPlan() {
 
   useEffect(() => {
     if (!cycleId) return;
-    setPlan(getPlanForDate(cycleId, today) || null);
+    const saved = getPlanForDate(cycleId, today);
+    setPlan(saved || null);
+    setUserState(saved?.userState || 'normal');
+    setNotes(saved?.notes || '');
+    setBlockers(saved?.blockers || '');
     setGoals(getGoals(cycleId));
   }, [cycleId, today]);
 
@@ -88,6 +92,7 @@ export default function TodayPlan() {
   const stepFor = (task: TaskItem) => Math.max(1, Math.round(task.targetAmount / 20));
 
   const handleClose = () => {
+    if (isClosed) return;
     const todayCompletionPercent = calculateTodayCompletion(plan);
     const cumulativeCompletionPercent = calculateCycleProgress(activeGoals);
     const expectedProgressPercent = calculateExpectedProgress(cycle, today);

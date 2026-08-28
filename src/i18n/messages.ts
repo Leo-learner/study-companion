@@ -3,6 +3,26 @@ export type Language = 'zh' | 'en';
 type Message = { zh: string; en: string };
 
 export const messages = {
+  'ui.help': { zh: '使用帮助', en: 'Help' },
+  'ui.closeHelp': { zh: '关闭帮助', en: 'Close help' },
+  'ui.planDetails': { zh: '今日计划说明', en: 'About today’s plan' },
+  'ui.navigation': { zh: '主导航', en: 'Main navigation' },
+  'ui.skipContent': { zh: '跳到主要内容', en: 'Skip to content' },
+  'ui.encouragement': { zh: '先完成一点，也是在前进。', en: 'A little progress is still progress.' },
+  'ui.minimum': { zh: '保底任务', en: 'Minimum task' },
+  'ui.noMinimum': { zh: '今天没有保底任务', en: 'No minimum tasks today' },
+  'ui.recommended': { zh: '推荐任务', en: 'Recommended tasks' },
+  'ui.optional': { zh: '可选任务', en: 'Optional tasks' },
+  'ui.moodNotes': { zh: '心情与备注', en: 'Mood & notes' },
+  'ui.markComplete': { zh: '标记完成', en: 'Mark complete' },
+  'ui.undoComplete': { zh: '撤销完成', en: 'Undo completion' },
+  'ui.finish': { zh: '收工', en: 'Finish today' },
+  'ui.skipped': { zh: '已跳过', en: 'Skipped' },
+  'ui.restore': { zh: '恢复任务', en: 'Restore task' },
+  'ui.taskComplete': { zh: '完成：{title}', en: 'Complete: {title}' },
+  'ui.taskAmount': { zh: '完成量：{title}', en: 'Completed amount: {title}' },
+  'ui.taskCount': { zh: '{count} 项', en: '{count} tasks' },
+  'ui.reviewDetails': { zh: '查看学习概况', en: 'Learning overview' },
   'app.title': { zh: '学习系统陪跑器', en: 'Study Companion' },
   'app.brand': { zh: '学习陪跑', en: 'Study Companion' },
   'app.reminder': {
