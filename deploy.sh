@@ -1,80 +1,83 @@
 #!/usr/bin/env bash
-# 部署 study-companion（纯静态 SPA）到服务器的子路径。
+# 部署 study-companion（纯静态 SPA）到 studycompanion.dkz12345.com。
 #
-#   ./deploy.sh inspect          # 只勘察：看 nginx 站点、已有目录，决定挂哪儿
-#   ./deploy.sh deploy <site> <path>
+#   ./deploy.sh inspect              # 勘察：站点配置、当前发布版本
+#   ./deploy.sh deploy               # 构建 → 上传为新 release → 切换 current 软链
+#   ./deploy.sh rollback             # 切回上一个 release
+#   ./deploy.sh releases             # 列出所有 release
 #
-# 例：./deploy.sh deploy dkz12345.com /study
-#
-# 产物用相对资源路径构建（vite base './'）+ HashRouter，
-# 因此换子路径不需要重新构建，nginx 里换个 location 即可。
+# 沿用服务器既有约定：releases/<tag> + current 软链。
+# 切软链即发布，无需改动 nginx；回滚就是把软链指回去，秒级完成。
 set -euo pipefail
 
 KEY="${DEPLOY_KEY:-$HOME/Desktop/ssh-key-removing-restricted/leo-web-key.pem}"
 HOST="${DEPLOY_HOST:-leo@20.48.14.96}"
-REMOTE_ROOT="${DEPLOY_ROOT:-/opt/apps/study-companion}"
+SITE_ROOT="${DEPLOY_SITE_ROOT:-/var/www/studycompanion.dkz12345.com}"
+URL="${DEPLOY_URL:-https://studycompanion.dkz12345.com/}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15)
 
 sshc() { ssh "${SSH_OPTS[@]}" -i "$KEY" "$HOST" "$@"; }
 
 case "${1:-inspect}" in
   inspect)
-    sshc 'echo "== hostname =="; hostname
-echo "== nginx sites-enabled =="; ls /etc/nginx/sites-enabled/ 2>/dev/null
-echo "== nginx server_name/root =="; grep -rhE "server_name|root |location " /etc/nginx/sites-enabled/ 2>/dev/null | sed "s/^[ \t]*//" | head -40
-echo "== /opt/apps =="; ls /opt/apps 2>/dev/null
-echo "== /var/www =="; ls /var/www 2>/dev/null
-echo "== 磁盘 =="; df -h / | tail -1'
+    sshc "echo '== 当前发布 =='; ls -l '$SITE_ROOT/current'
+echo '== 全部 release =='; ls -1t '$SITE_ROOT/releases' 2>/dev/null
+echo '== 站点配置 =='; sudo grep -E 'server_name|root |try_files' /etc/nginx/sites-enabled/studycompanion.dkz12345.com | sed 's/^[ \t]*//'"
     ;;
 
   deploy)
-    SITE="${2:?用法: deploy.sh deploy <nginx站点文件名> <子路径，如 /study>}"
-    URLPATH="${3:?用法: deploy.sh deploy <nginx站点文件名> <子路径，如 /study>}"
+    TAG="${2:-redesign-$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)}"
     TGZ="$(mktemp -t sc-dist).tgz"
 
     echo "→ 构建"
     npm run build >/dev/null
-    tar -czf "$TGZ" -C dist .
 
-    echo "→ 上传到 $REMOTE_ROOT"
+    # COPYFILE_DISABLE：不要把 macOS 的 ._* AppleDouble 垃圾文件打进包
+    echo "→ 打包 $TAG"
+    COPYFILE_DISABLE=1 tar --exclude '._*' --exclude '.DS_Store' -czf "$TGZ" -C dist .
+
+    echo "→ 上传"
     scp "${SSH_OPTS[@]}" -i "$KEY" "$TGZ" "$HOST:/tmp/sc-dist.tgz"
 
-    echo "→ 解包（先备份旧版本）"
-    sshc "sudo mkdir -p '$REMOTE_ROOT'
-if [ -d '$REMOTE_ROOT/current' ]; then sudo rm -rf '$REMOTE_ROOT/previous'; sudo mv '$REMOTE_ROOT/current' '$REMOTE_ROOT/previous'; fi
-sudo mkdir -p '$REMOTE_ROOT/current'
-sudo tar -xzf /tmp/sc-dist.tgz -C '$REMOTE_ROOT/current'
-sudo chown -R www-data:www-data '$REMOTE_ROOT'
+    echo "→ 解包为新 release"
+    sshc "set -e
+mkdir -p '$SITE_ROOT/releases/$TAG'
+tar -xzf /tmp/sc-dist.tgz -C '$SITE_ROOT/releases/$TAG'
+find '$SITE_ROOT/releases/$TAG' -name '._*' -delete
 rm -f /tmp/sc-dist.tgz
-ls -la '$REMOTE_ROOT/current' | head"
+ls '$SITE_ROOT/releases/$TAG'"
 
-    echo "→ nginx location（若已存在则跳过，需手工确认）"
-    sshc "if sudo grep -q 'location ${URLPATH}' '/etc/nginx/sites-enabled/${SITE}'; then
-  echo '  已有 ${URLPATH} 配置，未改动'
-else
-  echo '  请手工在 /etc/nginx/sites-enabled/${SITE} 的 server 块内加入：'
-  cat <<CONF
-    location ${URLPATH}/ {
-        alias ${REMOTE_ROOT}/current/;
-        try_files \\\$uri \\\$uri/ ${URLPATH}/index.html;
-    }
-    location = ${URLPATH} { return 301 ${URLPATH}/; }
-CONF
-fi"
+    echo "→ 切换 current 软链"
+    sshc "set -e
+readlink '$SITE_ROOT/current' > '$SITE_ROOT/.previous' || true
+ln -sfn '$SITE_ROOT/releases/$TAG' '$SITE_ROOT/current'
+ls -l '$SITE_ROOT/current'"
 
-    echo "→ 校验并重载 nginx"
-    sshc 'sudo nginx -t && sudo systemctl reload nginx && echo "nginx 已重载"'
+    echo "→ 重载 nginx"
+    sshc 'sudo nginx -t 2>&1 | tail -1 && sudo systemctl reload nginx && echo nginx-reloaded'
+
+    echo "→ 校验线上"
+    sleep 2
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL")
+    echo "  HTTP $code"
+    curl -s --max-time 20 "$URL" | grep -o 'assets/[^"]*' | head -3
     rm -f "$TGZ"
-    echo "✓ 完成"
+    echo "✓ 已发布：$TAG"
     ;;
 
   rollback)
-    sshc "if [ -d '$REMOTE_ROOT/previous' ]; then
-  sudo rm -rf '$REMOTE_ROOT/current'
-  sudo mv '$REMOTE_ROOT/previous' '$REMOTE_ROOT/current'
-  echo '已回滚到上一版本'
-else echo '没有可回滚的版本'; fi"
+    sshc "set -e
+prev=\$(cat '$SITE_ROOT/.previous' 2>/dev/null || true)
+if [ -z \"\$prev\" ] || [ ! -d \"\$prev\" ]; then echo '没有可回滚的版本'; exit 1; fi
+readlink '$SITE_ROOT/current' > '$SITE_ROOT/.previous'
+ln -sfn \"\$prev\" '$SITE_ROOT/current'
+ls -l '$SITE_ROOT/current'"
+    sshc 'sudo systemctl reload nginx && echo nginx-reloaded'
     ;;
 
-  *) echo "用法: $0 {inspect|deploy <site> <path>|rollback}"; exit 1 ;;
+  releases)
+    sshc "ls -1t '$SITE_ROOT/releases'; echo '--- 当前 ---'; readlink '$SITE_ROOT/current'"
+    ;;
+
+  *) echo "用法: $0 {inspect|deploy [tag]|rollback|releases}"; exit 1 ;;
 esac
