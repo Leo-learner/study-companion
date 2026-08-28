@@ -10,8 +10,6 @@ import Review from './pages/Review';
 import Settings from './pages/Settings';
 import Icon, { IconName } from './components/Icon';
 import { useI18n } from './i18n/I18nProvider';
-import HelpMenu from './components/HelpMenu';
-import Icon, { IconName } from './components/Icon';
 import { TranslationKey } from './i18n/messages';
 import { useTheme } from './theme';
 import { getActiveCycle, getOverrides, getPlans } from './storage';
