@@ -9,9 +9,10 @@ import {
   CheckIn,
   DayOverride,
   AppSettings,
-  STORAGE_KEY,
   CURRENT_DATA_VERSION,
+  dataKeyFor,
 } from './types';
+import { Envelope, decrypt, encrypt, isEnvelope } from './crypto';
 
 // --- 获取初始空数据 ---
 function getEmptyData(): AppData {
@@ -26,34 +27,143 @@ function getEmptyData(): AppData {
   };
 }
 
+// ============================================================
+// 当前账号的会话状态
+//
+// 加密是异步的（Web Crypto），而 saveData() 被十几处同步调用。
+// 因此这里用「内存缓存 + 单飞异步落盘」：读写对调用方全同步，
+// 加密与写入在后台串行完成，页面层一行都不用改。
+// ============================================================
+
+let activeAccountId: string | null = null;
+let activeKey: CryptoKey | null = null;   // 无密码账号为 null
+let cache: AppData | null = null;
+
+let writing = false;
+let pendingWrite = false;
+let lastWrite: Promise<void> = Promise.resolve();
+
+function currentKey(): string {
+  if (!activeAccountId) throw new Error('尚未选定账号');
+  return dataKeyFor(activeAccountId);
+}
+
+function normalize(data: AppData): AppData {
+  if (!data.version) data.version = 1;
+  data.cycles = data.cycles || [];
+  data.goals = data.goals || [];
+  data.plans = data.plans || [];
+  data.checkIns = data.checkIns || [];
+  data.overrides = data.overrides || [];
+  data.settings = data.settings || {};
+  return data;
+}
+
+/**
+ * 载入某账号的数据到内存。有密码的账号必须传入已派生的密钥。
+ * 返回 false 表示密文解不开（密码错误或数据损坏），调用方据此提示。
+ */
+export async function openAccount(accountId: string, key: CryptoKey | null): Promise<boolean> {
+  const raw = localStorage.getItem(dataKeyFor(accountId));
+  if (!raw) {
+    activeAccountId = accountId;
+    activeKey = key;
+    cache = normalize(getEmptyData());
+    return true;
+  }
+
+  let text: string | null = raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (isEnvelope(parsed)) {
+      if (!key) return false;                       // 有密文却没给密钥
+      text = await decrypt(key, parsed as Envelope);
+      if (text === null) return false;              // 密码错误
+    }
+  } catch {
+    return false;
+  }
+
+  try {
+    activeAccountId = accountId;
+    activeKey = key;
+    cache = normalize(JSON.parse(text) as AppData);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 切走账号时清掉内存中的明文与密钥。 */
+export function closeAccount(): void {
+  activeAccountId = null;
+  activeKey = null;
+  cache = null;
+}
+
+export function isAccountOpen(): boolean {
+  return cache !== null;
+}
+
+/** 用新密钥（或 null 表示取消密码）重写当前账号的数据。 */
+export async function rekeyActiveAccount(key: CryptoKey | null): Promise<void> {
+  activeKey = key;
+  await flushNow();
+}
+
+async function persist(snapshot: AppData): Promise<void> {
+  const text = JSON.stringify(snapshot);
+  const payload = activeKey ? JSON.stringify(await encrypt(activeKey, text)) : text;
+  try {
+    localStorage.setItem(currentKey(), payload);
+  } catch (e) {
+    console.error('数据保存失败，可能 localStorage 已满', e);
+  }
+}
+
+/** 单飞：写入进行中只记 pending，结束后用最新快照再写一次。 */
+function scheduleFlush(): void {
+  if (writing) { pendingWrite = true; return; }
+  writing = true;
+  lastWrite = (async () => {
+    try {
+      do {
+        pendingWrite = false;
+        if (cache) await persist(cache);
+      } while (pendingWrite);
+    } finally {
+      writing = false;
+    }
+  })();
+}
+
+/** 等待落盘完成——切换账号、改密码、页面隐藏前调用。 */
+export async function flushNow(): Promise<void> {
+  scheduleFlush();
+  await lastWrite;
+}
+
+if (typeof window !== 'undefined') {
+  // 关标签页/切后台时尽力把最后一次修改写完
+  window.addEventListener('pagehide', () => { void flushNow(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushNow();
+  });
+}
+
 // --- 读取全部数据 ---
 export function loadData(): AppData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return getEmptyData();
-    const data = JSON.parse(raw) as AppData;
-    // 版本迁移（当前版本为 1，无需迁移）
-    if (!data.version) data.version = 1;
-    // 确保所有数组字段存在
-    data.cycles = data.cycles || [];
-    data.goals = data.goals || [];
-    data.plans = data.plans || [];
-    data.checkIns = data.checkIns || [];
-    data.overrides = data.overrides || [];
-    data.settings = data.settings || {};
-    return data;
-  } catch {
-    return getEmptyData();
-  }
+  if (cache) return cache;
+  return getEmptyData();
 }
 
 // --- 保存全部数据 ---
 export function saveData(data: AppData): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error('数据保存失败，可能 localStorage 已满', e);
-  }
+  // 同步更新内存，异步加密落盘
+  cache = data;
+  cache.accountId = activeAccountId ?? undefined;
+  cache.updatedAt = new Date().toISOString();
+  scheduleFlush();
 }
 
 // --- 辅助：修改数据并保存 ---
@@ -245,6 +355,8 @@ export function importDataJSON(jsonStr: string): ImportResult {
   }
 }
 
+/** 只清空当前账号的数据，其它账号不受影响。 */
 export function clearAllData(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  cache = normalize(getEmptyData());
+  scheduleFlush();
 }

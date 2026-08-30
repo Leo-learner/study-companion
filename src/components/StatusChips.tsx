@@ -73,6 +73,12 @@ export function ModeChip({ mode }: { mode: PlanMode }) {
   return <span className={`chip ${MODE_CLASS[mode]}`}>{t(PLAN_MODE_KEYS[mode])}</span>;
 }
 
+/** 账号头像色点，复用状态色板保持视觉一致。 */
+export const ACCOUNT_COLORS = [
+  'var(--sc-primary)', 'var(--sc-rec)', 'var(--sc-rest)',
+  'var(--sc-low)', 'var(--sc-exam)', 'var(--sc-health)',
+];
+
 /** 当日状态用色点，不用表情——避免 emoji 跨端漂移。 */
 export const STATE_COLOR: Record<UserState, string> = {
   good: 'var(--sc-primary)',

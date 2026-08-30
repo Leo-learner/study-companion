@@ -158,8 +158,30 @@ export interface AppSettings {
 // --- 完整数据包 ---
 export const DEFAULT_LAUNCH_PHRASE = '开始学习';
 
+// --- 账号 ---
+
+export interface Account {
+  id: string;                 // 稳定 ID，将来做同步时的主键
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  colorIndex: number;         // 头像色点
+  /** 有密码时存在。只存 KDF 参数，不存密码本身。 */
+  kdf?: { salt: string; iterations: number };
+}
+
+export interface AccountsIndex {
+  version: number;
+  accounts: Account[];
+  lastActiveId?: string;
+}
+
 export interface AppData {
   version: number;
+  /** 所属账号。本期只写不读，为将来同步预留。 */
+  accountId?: string;
+  /** 整份数据的最后修改时间，为将来同步比对预留。 */
+  updatedAt?: string;
   cycles: StudyCycle[];
   goals: StudyGoal[];
   plans: DailyPlan[];
@@ -169,6 +191,15 @@ export interface AppData {
 }
 
 export const STORAGE_KEY = 'study-companion-data-v1';
+export const ACCOUNTS_KEY = 'study-companion-accounts-v1';
+export const ACCOUNTS_VERSION = 1;
+/** 迁移后旧键改成这个名字保留一次，不直接删除。 */
+export const LEGACY_BACKUP_KEY = 'study-companion-data-v1.migrated-backup';
+
+/** 每个账号的数据键。 */
+export function dataKeyFor(accountId: string): string {
+  return `${STORAGE_KEY}::${accountId}`;
+}
 export const CURRENT_DATA_VERSION = 1;
 
 // --- 生成唯一 ID ---

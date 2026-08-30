@@ -8,12 +8,15 @@ import CheckInView from './pages/CheckInView';
 import History from './pages/History';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
+import AccountManager from './pages/AccountManager';
 import Icon, { IconName } from './components/Icon';
 import { useI18n } from './i18n/I18nProvider';
 import { TranslationKey } from './i18n/messages';
 import { useTheme } from './theme';
 import { getActiveCycle, getOverrides, getPlans } from './storage';
 import { getSystemRunningStreak } from './progress';
+import { useAccounts } from './AccountProvider';
+import { ACCOUNT_COLORS } from './components/StatusChips';
 import { todayStr } from './types';
 
 interface NavEntry {
@@ -33,6 +36,7 @@ const SECONDARY_NAV: NavEntry[] = [
   { to: '/history', labelKey: 'nav.history', icon: 'history' },
   { to: '/review', labelKey: 'nav.review', icon: 'review' },
   { to: '/settings', labelKey: 'nav.settings', icon: 'settings' },
+  { to: '/accounts', labelKey: 'account.title', icon: 'goal' },
 ];
 
 const ALL_NAV = [...PRIMARY_NAV, ...SECONDARY_NAV];
@@ -48,6 +52,7 @@ export default function App() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { theme, toggleTheme } = useTheme();
+  const { current: currentAccount } = useAccounts();
   const [moreOpen, setMoreOpen] = useState(false);
 
   // 路由切换时关闭面板并回到顶部
@@ -91,6 +96,14 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        <button type="button" className="account-switch" onClick={() => navigate('/accounts')}>
+          <span className="account-dot" style={{
+            background: ACCOUNT_COLORS[(currentAccount?.colorIndex ?? 0) % ACCOUNT_COLORS.length],
+          }}>{currentAccount?.name.slice(0, 1)}</span>
+          <span className="account-switch-name">{currentAccount?.name}</span>
+          <Icon name="chev" size={15} style={{ color: 'var(--sc-ink-3)' }} />
+        </button>
 
         {cycle && (
           <div className="sidebar-streak">
@@ -144,6 +157,7 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/review" element={<Review />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/accounts" element={<AccountManager />} />
           </Routes>
 
           <div className="core-reminder">

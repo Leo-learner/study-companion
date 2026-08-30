@@ -520,3 +520,52 @@ input::placeholder, textarea::placeholder { color: var(--sc-ink-3); }
   }
   .sheet-item:hover { background: var(--sc-surface-2); }
 }
+
+/* --- 账号 --- */
+.account-switch {
+  margin-top: auto; display: flex; align-items: center; gap: 10px;
+  min-height: var(--sc-tap); padding: 0 12px;
+  background: var(--sc-surface-2); border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r2); cursor: pointer; text-align: left;
+  transition: border-color var(--sc-t-fast);
+}
+.account-switch:hover { border-color: var(--sc-primary); }
+.account-switch-name {
+  flex: 1; font-size: 14px; color: var(--sc-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-dot {
+  width: 28px; height: 28px; flex: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 500;
+}
+
+/* 解锁屏：未解锁时不渲染主应用，界面上不会出现任何学习数据 */
+.unlock {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--sc-paper);
+}
+.unlock-card {
+  width: 100%; max-width: 380px;
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--sc-surface); border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r4); padding: 28px 24px; box-shadow: var(--sc-e2);
+}
+.unlock-avatar {
+  width: 48px; height: 48px; border-radius: var(--sc-r3); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.app-loading { min-height: 100vh; background: var(--sc-paper); }
+
+/* 密码对话框 */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(10, 14, 13, .42);
+}
+.sheet-panel {
+  width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--sc-surface); border-radius: var(--sc-r4);
+  padding: 22px; box-shadow: var(--sc-e3);
+}

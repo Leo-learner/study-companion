@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>隐私政策 · 学习陪跑</title>
+<style>
+  :root{--paper:#F3F1EB;--surface:#fff;--ink:#222827;--ink2:#5C6462;--ink3:#8D938E;
+        --primary:#2F6E70;--line:#E5E0D8;}
+  @media (prefers-color-scheme:dark){
+    :root{--paper:#121617;--surface:#1A2021;--ink:#E7EAE6;--ink2:#A5ADA9;--ink3:#79817D;
+          --primary:#71B4B0;--line:#2B3334;}
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);line-height:1.8;
+       font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+       padding:32px 20px 64px}
+  main{max-width:680px;margin:0 auto}
+  h1{font-size:24px;line-height:1.35;margin-bottom:6px}
+  .updated{color:var(--ink3);font-size:13px;margin-bottom:28px}
+  h2{font-size:16px;margin:28px 0 10px;color:var(--primary)}
+  p,li{color:var(--ink2);font-size:15px}
+  ul{padding-left:20px;margin:8px 0}
+  li{margin:6px 0}
+  strong{color:var(--ink)}
+  .box{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+       padding:18px 20px;margin:20px 0}
+  footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--line);
+         color:var(--ink3);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <h1>隐私政策</h1>
+  <div class="updated">学习陪跑（Study Companion） · 更新日期：2026 年 8 月 30 日</div>
+
+  <div class="box">
+    <p><strong>一句话：本应用不收集你的任何信息。</strong>你的全部学习记录只存在你自己的设备上，
+    应用没有服务器、没有账号，也没有申请网络权限，技术上无法把数据传出去。</p>
+  </div>
+
+  <h2>一、我们收集哪些信息</h2>
+  <p><strong>不收集任何个人信息。</strong>具体而言，本应用不收集也不要求你提供：</p>
+  <ul>
+    <li>姓名、手机号、邮箱、身份证件等身份信息</li>
+    <li>位置、通讯录、短信、通话记录、相册</li>
+    <li>设备标识符（IMEI、OAID、Android ID 等）</li>
+    <li>使用统计、崩溃日志、行为埋点</li>
+  </ul>
+
+  <h2>二、你的数据存在哪里</h2>
+  <p>你创建的学习周期、目标、每日任务、打卡记录和偏好设置，全部保存在
+  <strong>你设备本机的应用私有存储空间</strong>内，不会离开设备。</p>
+  <p>卸载应用即彻底删除这些数据；你也可以随时在「设置 → 数据」中一键清空。</p>
+
+  <h2>三、我们不做的事</h2>
+  <ul>
+    <li>不上传、不同步、不备份到任何服务器</li>
+    <li>不与任何第三方共享、转让或交易数据</li>
+    <li>不接入广告、统计分析或任何第三方 SDK</li>
+    <li>不追踪你的使用行为</li>
+  </ul>
+
+  <h2>四、账号与密码</h2>
+  <p>应用支持在同一台设备上建立多个账号，用来把不同人或不同阶段的学习记录分开。
+  <strong>账号完全存在本机</strong>：没有注册、没有登录服务器，账号名和数据都不会离开设备。</p>
+  <p>你可以给账号设置密码。密码<strong>不会被保存</strong>——我们只保存由它派生密钥所需的
+  随机盐值，数据本身用 AES-GCM 加密后存在本机。这意味着两件事：</p>
+  <ul>
+    <li><strong>忘记密码无法恢复。</strong>没有服务器，任何人都重置不了，包括开发者。</li>
+    <li>这层加密防的是别人顺手点开你的浏览器或设备，<strong>防不住能完整读取设备存储的人</strong>。
+    请不要把它当作对抗专业攻击的保护。</li>
+  </ul>
+
+  <h2>五、权限说明</h2>
+  <p>本应用<strong>未申请任何敏感权限</strong>，也未申请网络访问权限。</p>
+  <p>当你主动点击「导出 JSON」时，应用会把备份文件写入系统「下载」目录——
+  这一操作由你发起，写入的内容就是你自己的学习记录，且仅保存在本机。</p>
+
+  <h2>六、你的权利</h2>
+  <ul>
+    <li><strong>查看与导出</strong>：设置 → 数据 → 导出 JSON，可得到全部数据的完整副本</li>
+    <li><strong>删除</strong>：设置 → 数据 → 清空所有本地数据（只影响当前账号），
+    或在账号页删除整个账号，或直接卸载应用</li>
+    <li><strong>迁移</strong>：导出的 JSON 可通过「从文件导入」恢复到其它设备</li>
+  </ul>
+  <p>由于我们不持有你的任何数据，无需向我们提交任何申请即可行使上述权利。</p>
+
+  <h2>七、未成年人保护</h2>
+  <p>本应用不收集任何信息，因此不存在收集未成年人个人信息的情形。
+  如果你是未满 14 周岁的未成年人，建议在监护人陪同下使用。</p>
+
+  <h2>八、政策更新</h2>
+  <p>若本政策发生变更，我们会在应用内提示并更新本页顶部的日期。
+  由于应用的基本形态是「数据不出设备」，我们不打算改变这一点。</p>
+
+  <h2>九、联系我们</h2>
+  <p>如对本政策有疑问，可通过应用商店页面的开发者联系方式与我们联系。</p>
+
+  <footer>
+    本页同时内置于应用中，离线可查看。
+  </footer>
+</main>
+</body>
+</html>

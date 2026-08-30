@@ -522,6 +522,65 @@ export const messages = {
     zh: '共 {days} 天，其中约 {study} 个学习日。系统只会在学习日给你排任务；休息日不排、也不算断线。',
     en: '{days} days total, about {study} study days. Tasks appear only on study days — rest days generate none and never break the chain.',
   },
+  'settingsNew.privacy': { zh: '隐私政策', en: 'Privacy policy' },
+  'settingsNew.privacyHint': {
+    zh: '不收集任何信息，数据只存在你自己的设备上。',
+    en: 'Nothing is collected; your data stays on your own device.',
+  },
+  // ===== 账号 =====
+  'account.defaultName': { zh: '我的学习', en: 'My study' },
+  'account.title': { zh: '账号', en: 'Accounts' },
+  'account.subtitle': {
+    zh: '同一台设备上的多套数据，互不影响。账号只存在这台设备上。',
+    en: 'Separate sets of data on this device. Accounts live only on this device.',
+  },
+  'account.current': { zh: '当前', en: 'Current' },
+  'account.switch': { zh: '切换账号', en: 'Switch account' },
+  'account.switchOther': { zh: '换一个账号', en: 'Use another account' },
+  'account.create': { zh: '新建账号', en: 'New account' },
+  'account.namePlaceholder': { zh: '账号名称，例如 考研', en: 'Account name, e.g. Exam prep' },
+  'account.rename': { zh: '改名', en: 'Rename' },
+  'account.locked': { zh: '已加密', en: 'Encrypted' },
+  'account.lock': { zh: '立即锁定', en: 'Lock now' },
+  'account.password': { zh: '密码', en: 'Password' },
+  'account.passwordPlaceholder': { zh: '输入密码…', en: 'Enter password…' },
+  'account.setPassword': { zh: '设置密码', en: 'Set password' },
+  'account.changePassword': { zh: '修改密码', en: 'Change password' },
+  'account.removePassword': { zh: '取消密码', en: 'Remove password' },
+  'account.currentPassword': { zh: '当前密码', en: 'Current password' },
+  'account.newPassword': { zh: '新密码', en: 'New password' },
+  'account.confirmPassword': { zh: '再输一次', en: 'Confirm password' },
+  'account.passwordMismatch': { zh: '两次输入不一致。', en: 'The two entries do not match.' },
+  'account.passwordTooShort': { zh: '密码至少 4 位。', en: 'Use at least 4 characters.' },
+  'account.wrongPassword': {
+    zh: '密码不对。再试一次——没有次数限制。',
+    en: 'That password did not work. Try again — there is no attempt limit.',
+  },
+  'account.unlock': { zh: '解锁', en: 'Unlock' },
+  'account.unlocking': { zh: '解锁中…', en: 'Unlocking…' },
+  'account.unlockHint': { zh: '这个账号的数据是加密的，输入密码后才能打开。', en: 'This account is encrypted. Enter its password to open it.' },
+  'account.rememberSession': {
+    zh: '本次浏览器会话内记住（关掉标签页就失效）',
+    en: 'Remember for this browser session (cleared when the tab closes)',
+  },
+  'account.passwordWarning': {
+    zh: '说清楚两件事：一、忘记密码就无法恢复数据——没有服务器，我们也重置不了。二、这层加密防的是别人顺手点开你的浏览器，防不住能完整读取你设备存储的人。',
+    en: 'Two things to be clear about: first, if you forget this password the data cannot be recovered — there is no server, so nobody can reset it. Second, this protects against someone casually opening your browser, not against someone with full access to your device storage.',
+  },
+  'account.deleteWarning': {
+    zh: '删除账号会一并删掉它的全部学习记录，且无法撤销。建议先导出备份。',
+    en: 'Deleting an account also deletes all of its records, and cannot be undone. Export a backup first.',
+  },
+  'account.lastOne': { zh: '这是唯一的账号，不能删除。', en: 'This is the only account; it cannot be deleted.' },
+  'account.switchFirst': {
+    zh: '要改这个账号的密码，请先切换到它——改密码需要用新密码把数据重新加密一遍。',
+    en: 'Switch to this account first: changing its password re-encrypts its data, which requires the account to be open.',
+  },
+  'account.dataNote': {
+    zh: '每个账号的数据分开存放在这台设备上。导出、导入和清空都只作用于当前账号。',
+    en: 'Each account is stored separately on this device. Export, import and clear apply to the current account only.',
+  },
+
   'setupNew.restDaysHint': { zh: '休息日不会生成任务，也不会算断线。', en: 'Rest days generate no tasks and never break the chain.' },
 } as const satisfies Record<string, Message>;
 

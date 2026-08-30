@@ -280,6 +280,19 @@ export default function Settings() {
         <div className="note">{t('settingsNew.dataHint')}</div>
       </div>
 
+      {/* 隐私政策：商店要求可公开访问，App 内则读内置副本 */}
+      <a className="card card-flat" href="privacy.html" target="_blank" rel="noreferrer"
+         style={{ textDecoration: 'none' }}>
+        <div className="row" style={{ gap: 9 }}>
+          <Icon name="book" size={16} style={{ color: 'var(--sc-primary)' }} />
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--sc-ink)' }}>
+            {t('settingsNew.privacy')}
+          </span>
+          <Icon name="chev" size={16} style={{ color: 'var(--sc-ink-3)' }} />
+        </div>
+        <div className="note">{t('settingsNew.privacyHint')}</div>
+      </a>
+
       {/* 使用说明 */}
       <div className="card card-quiet">
         <div className="card-title">
